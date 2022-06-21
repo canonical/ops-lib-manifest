@@ -17,7 +17,6 @@ from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
 from lightkube.models.core_v1 import Toleration
-from lightkube.models.meta_v1 import ObjectMeta
 
 log = logging.getLogger(__file__)
 
@@ -28,7 +27,9 @@ _VERSION_SPLIT = re.compile(r"(\d+)")
 
 
 def _by_version(version: str) -> Version:
-    convert = lambda text: int(text) if text.isdigit() else text
+    def convert(part):
+        return int(part) if part.isdigit() else part
+
     return [convert(c) for c in _VERSION_SPLIT.split(version)]
 
 
@@ -122,6 +123,7 @@ class CreateNamespace(Addition):
                     metadata=dict(name=which_ns),
                 )
             )
+        return None
 
 
 class ManifestLabel(Patch):
@@ -129,22 +131,22 @@ class ManifestLabel(Patch):
 
     def __call__(self, obj: AnyResource):
         """Adds manifest.name label to obj."""
-        obj.metadata = obj.metadata or ObjectMeta()      # ensure object has metadata
-        obj.metadata.labels = obj.metadata.labels or {}  # ensure object has labels
-        obj.metadata.labels[self.manifests.name] = "true"
+        if obj.metadata:
+            obj.metadata.labels = obj.metadata.labels or {}  # ensure object has labels
+            obj.metadata.labels[self.manifests.name] = "true"
 
 
 class ConfigRegistry(Patch):
     """Applies image registry to the manifest."""
 
     def __call__(self, obj):
-        """Uses the image-registry config for the manifest and updates all container images."""
+        """Use the image-registry config and updates container images in obj."""
         registry = self.manifests.config.get("image-registry")
         if not registry:
             return
         if obj.kind in ["Pod"]:
             containers = obj.spec.containers
-        elif obj.kind in ["DaemonSet", "Deployment"]:
+        elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet"]:
             containers = obj.spec.template.spec.containers
         else:
             containers = []
@@ -236,7 +238,10 @@ class Manifests:
 
     @cached_property
     def releases(self) -> List[str]:
-        """List all possible releases supported by the manifests sorted by latest release first."""
+        """List all possible releases supported by the manifests.
+
+        Results are sorted by highest release number first.
+        """
         return sorted(
             set(
                 manifests.parent.name
@@ -354,13 +359,10 @@ class Manifests:
             for manipulate in self.manipulations:
                 if isinstance(manipulate, Patch):
                     manipulate(rsc)
-            name = rsc.metadata.name
-            namespace = rsc.metadata.namespace
-            log.info(
-                f"Applying {rsc.kind}/{name}"
-                + (f" to {namespace}" if namespace else "")
-            )
-            self.client.apply(rsc, name, force=True)
+
+            loggable = HashableResource(rsc)
+            log.info(f"Applying {loggable}")
+            self.client.apply(rsc, force=True)
 
     def delete_manifests(self, **kwargs):
         """Delete all manifests associated with the current resources."""

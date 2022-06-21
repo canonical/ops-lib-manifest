@@ -138,9 +138,14 @@ def test_apply_resources(manifest, lk_client, caplog):
     manifest.apply_manifests()
     assert lk_client.apply.call_count == 4
     assert caplog.messages[0] == "Applying Namespace/default"
-    assert caplog.messages[1] == "Applying ServiceAccount/test-manifest-manager to kube-system"
-    assert caplog.messages[2] == "Applying Secret/test-manifest-secret to kube-system"
-    assert caplog.messages[3] == "Applying Deployment/test-manifest-deployment to kube-system"
+    assert (
+        caplog.messages[1]
+        == "Applying ServiceAccount/kube-system/test-manifest-manager"
+    )
+    assert caplog.messages[2] == "Applying Secret/kube-system/test-manifest-secret"
+    assert (
+        caplog.messages[3] == "Applying Deployment/kube-system/test-manifest-deployment"
+    )
 
 
 def test_expected_resources(manifest):
@@ -157,6 +162,7 @@ def test_expected_resources(manifest):
     assert element.namespace == "kube-system"
     assert element.name == "test-manifest-manager"
     assert element.kind == "ServiceAccount"
+
 
 def test_active_resources(manifest):
     with mock.patch.object(
