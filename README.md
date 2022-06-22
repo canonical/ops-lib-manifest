@@ -1,6 +1,6 @@
 # ops-lib-manifests
 
-## Rational for this library
+## Rationale for this library
 Most kubernetes projects deploy with manifest files which promote suggested deployment
 parameters, but those manifests aren't consistent about which options are requirements
 and which options are variable. In some cases the project's distribution uses different
