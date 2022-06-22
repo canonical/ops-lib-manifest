@@ -28,7 +28,7 @@ stringData:
 ```
 
 Automation tools like a juju charm will need to read these yaml manifest files, manipulate
-its content, and deploy those manifests with any of the **configurable** data is changed.
+its content, and deploy those manifests when any of the **configurable** data is changed.
 
 
 ## Supporting Multiple Releases
