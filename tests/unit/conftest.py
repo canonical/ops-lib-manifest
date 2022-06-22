@@ -5,10 +5,12 @@ import unittest.mock as mock
 import pytest
 from lightkube import ApiError
 
+from ops.manifests import Manifests
+
 
 @pytest.fixture(autouse=True)
 def lk_client():
-    with mock.patch("ops.manifests.Client", autospec=True) as mock_lightkube:
+    with mock.patch("ops.manifests.manifest.Client", autospec=True) as mock_lightkube:
         yield mock_lightkube.return_value
 
 
@@ -21,3 +23,21 @@ def api_error_klass():
             pass
 
     yield TestApiError
+
+
+@pytest.fixture
+def manifest():
+    class TestManifests(Manifests):
+        def __init__(self):
+            self.data = {}
+            super().__init__(
+                "test-manifest",
+                "tests/data/mock_manifests",
+                default_namespace="default",
+            )
+
+        @property
+        def config(self):
+            return self.data
+
+    yield TestManifests()

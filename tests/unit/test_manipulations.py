@@ -1,3 +1,6 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 import unittest.mock as mock
 
 from lightkube.codecs import from_dict
