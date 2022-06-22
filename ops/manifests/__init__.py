@@ -1,11 +1,10 @@
 from .collector import Collector
-from .manifest import (
+from .manifest import HashableResource, Manifests
+from .manipulations import (
     Addition,
     ConfigRegistry,
     CreateNamespace,
-    HashableResource,
     ManifestLabel,
-    Manifests,
     Patch,
     update_toleration,
 )

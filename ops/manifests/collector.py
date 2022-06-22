@@ -29,13 +29,13 @@ class Collector:
                 # collection of ManifestImpls
                 self.manifests = [ ... ]
 
-                # create an Actions handler object
-                self.actions = Actions(*self.manifests)
+                # create an Collector handler object
+                self.collector = Collector(*self.manifests)
 
-                # Register actions callbacks
+                # Register collector callbacks
                 self.framework.observe(
                     self.on.list_versions_action,
-                    self.actions.list_versions
+                    self.collector.list_versions
                 )
         """
         d = {manifest.name: manifest for manifest in manifests}
