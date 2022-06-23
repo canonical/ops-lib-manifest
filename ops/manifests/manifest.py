@@ -270,13 +270,19 @@ class Manifests:
 
     def apply_manifests(self):
         """Apply all manifest files from the current release."""
+        log.info(f"Applying {self.name} version: {self.current_release}")
         for rsc in self.resources:
             for manipulate in self.manipulations:
                 if isinstance(manipulate, Patch):
                     manipulate(rsc.resource)
 
             log.info(f"Applying {rsc}")
-            self.client.apply(rsc.resource, force=True)
+            try:
+                self.client.apply(rsc.resource, force=True)
+            except ApiError:
+                log.exception(f"Failed Applying {rsc}")
+                raise
+        log.info("Applying Complete")
 
     def delete_manifests(self, **kwargs):
         """Delete all manifests associated with the current resources."""

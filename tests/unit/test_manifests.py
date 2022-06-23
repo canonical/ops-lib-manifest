@@ -111,10 +111,12 @@ def test_status(manifest, lk_client):
 def test_apply_resources(manifest, lk_client, caplog):
     manifest.apply_manifests()
     assert lk_client.apply.call_count == 3
-    assert sorted(caplog.messages[:3]) == [
-        "Applying Deployment/kube-system/test-manifest-deployment",
-        "Applying Secret/kube-system/test-manifest-secret",
+    assert caplog.messages == [
+        "Applying test-manifest version: v0.2",
         "Applying ServiceAccount/kube-system/test-manifest-manager",
+        "Applying Secret/kube-system/test-manifest-secret",
+        "Applying Deployment/kube-system/test-manifest-deployment",
+        "Applying Complete",
     ]
 
 

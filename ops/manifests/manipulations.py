@@ -48,6 +48,7 @@ class CreateNamespace(Addition):
     def __call__(self) -> Optional[AnyResource]:
         """Create the default namespace if available."""
         if self.namespace:
+            log.info(f"Creating namespace {self.namespace}")
             return codecs.from_dict(
                 dict(
                     apiVersion="v1",
