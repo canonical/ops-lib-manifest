@@ -121,7 +121,7 @@ class Collector:
             installed = manifest.installed_resources()
 
             analyses = [expected & installed, labelled - expected, expected - installed]
-            analyses = [set(filter(kind_filter, cws)) for cws in analyses]
+            analyses = [frozenset(filter(kind_filter, cws)) for cws in analyses]
             correct, extra, missing = analyses
 
             results[name] = _ResourceAnalysis(correct, extra, missing)

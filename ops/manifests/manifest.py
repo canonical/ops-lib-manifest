@@ -9,7 +9,7 @@ from collections import namedtuple, OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import cast, Dict, FrozenSet, List, Optional, Union
+from typing import Dict, FrozenSet, KeysView, List, Optional, Union
 
 import yaml
 from backports.cached_property import cached_property
@@ -194,8 +194,13 @@ class Manifests:
         return self.config.get("release") or self.default_release or self.latest_release
 
     @property
-    def resources(self) -> FrozenSet[HashableResource]:
-        """All component resource sets subdivided by kind and namespace."""
+    def resources(self) -> KeysView[HashableResource]:
+        """All unique component resources.
+
+        Order is guaranteed to be:
+        * Addition Manipulations
+        * Manifest files contents
+        """
         result: Dict[HashableResource, None] = OrderedDict()
         ver = self.current_release
 
@@ -212,7 +217,7 @@ class Manifests:
             for obj in self._safe_load(manifest):
                 result[HashableResource(obj)] = None
 
-        return cast(FrozenSet[HashableResource], result.keys())
+        return result.keys()
 
     @lru_cache()
     def _safe_load(self, filepath: Path) -> List[AnyResource]:
@@ -245,10 +250,10 @@ class Manifests:
             except ApiError:
                 continue
             result[HashableResource(next_rsc)] = None
-        return cast(FrozenSet[HashableResource], result.keys())
+        return frozenset(result.keys())
 
     def labelled_resources(self) -> FrozenSet[HashableResource]:
-        """Set of any installed resource ever labeled by this manifest."""
+        """Any resource ever installed and labeled by this class."""
 
         NamespaceKind = namedtuple("NamespaceKind", "namespace, kind")
         ns_kinds = set(
@@ -269,7 +274,7 @@ class Manifests:
         )
 
     def apply_manifests(self):
-        """Apply all manifest files from the current release."""
+        """Apply all manifest files from the current release after manipulating."""
         log.info(f"Applying {self.name} version: {self.current_release}")
         for rsc in self.resources:
             for manipulate in self.manipulations:
@@ -285,7 +290,7 @@ class Manifests:
         log.info("Applying Complete")
 
     def delete_manifests(self, **kwargs):
-        """Delete all manifests associated with the current resources."""
+        """Delete all manifests associated with the current release."""
         self.delete_resources(*self.resources, **kwargs)
 
     def delete_resources(
@@ -295,7 +300,7 @@ class Manifests:
         ignore_not_found: bool = False,
         ignore_unauthorized: bool = False,
     ):
-        """Delete named resources."""
+        """Delete specific resources."""
         for obj in resources:
             try:
                 namespace = obj.namespace or namespace
