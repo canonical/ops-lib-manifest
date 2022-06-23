@@ -1,6 +1,6 @@
 # ops-lib-manifests
 
-## Rational for this library
+## Rationale for this library
 Most kubernetes projects deploy with manifest files which promote suggested deployment
 parameters, but those manifests aren't consistent about which options are requirements
 and which options are variable. In some cases the project's distribution uses different
@@ -28,7 +28,7 @@ stringData:
 ```
 
 Automation tools like a juju charm will need to read these yaml manifest files, manipulate
-its content, and deploy those manifests with any of the **configurable** data is changed.
+its content, and deploy those manifests when any of the **configurable** data is changed.
 
 
 ## Supporting Multiple Releases

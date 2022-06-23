@@ -144,6 +144,8 @@ class Manifests:
         self.base_path = Path(base_path)
         if manipulations is None:
             self.manipulations = [ManifestLabel(self)]
+        else:
+            self.manipulations = manipulations
 
     @cached_property
     def client(self) -> Client:
