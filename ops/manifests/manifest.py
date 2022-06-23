@@ -143,7 +143,7 @@ class Manifests:
         self.app_name = app_name
         self.base_path = Path(base_path)
         if manipulations is None:
-            self.manipulations = [ManifestLabel(self)]
+            self.manipulations: List[Manipulation] = [ManifestLabel(self)]
         else:
             self.manipulations = manipulations
 
@@ -180,7 +180,8 @@ class Manifests:
     @cached_property
     def default_release(self) -> str:
         """Lookup the default release suggested by the manifest."""
-        return (self.base_path / "version").read_text(encoding="utf-8").strip()
+        version = self.base_path / "version"
+        return version.read_text(encoding="utf-8").strip() if version.exists() else ""
 
     @cached_property
     def latest_release(self) -> str:
