@@ -25,13 +25,13 @@ def test_hashable_resource(namespace):
 
 
 def test_manifest():
-    m1 = Manifests("m1", "tests/data/mock_manifests")
-    m2 = Manifests("m2", "tests/data/mock_manifests")
+    m1 = Manifests("m1", "unit-testing", "tests/data/mock_manifests")
+    m2 = Manifests("m2", "unit-testing", "tests/data/mock_manifests")
     assert m1.name != m2.name
 
 
 def test_manifest_without_config():
-    m1 = Manifests("m1", "tests/data/mock_manifests")
+    m1 = Manifests("m1", "unit-testing", "tests/data/mock_manifests")
     with pytest.raises(NotImplementedError):
         _ = m1.config
 
@@ -61,17 +61,17 @@ def test_current_release(manifest):
         manifest.default_release == "v0.3.1"  # absence of a default_release
 
 
-@pytest.mark.parametrize("release, uniqs", [("v0.1", 1), ("v0.2", 4), ("v0.3.1", 2)])
+@pytest.mark.parametrize("release, uniqs", [("v0.1", 0), ("v0.2", 3), ("v0.3.1", 1)])
 def test_resources_version(manifest, release, uniqs):
     manifest.data["release"] = release
     rscs = manifest.resources
     assert (
         len(rscs) == uniqs
     ), f"{uniqs} unique namespace kind resources in {manifest.current_release}"
-    if uniqs <= 1:
+    if uniqs < 1:
         return
 
-    assert len(rscs) > 1, "1 service account in kube-system namespace"
+    assert len(rscs) > 0, "1 service account in kube-system namespace"
     element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
     assert element.namespace == "kube-system"
     assert element.name == "test-manifest-manager"
@@ -102,18 +102,17 @@ def test_status(manifest, lk_client):
     with mock.patch.object(lk_client, "get") as mock_get:
         mock_get.side_effect = mock_get_responder
         resource_status = manifest.status()
-    assert mock_get.call_count == 4
+    assert mock_get.call_count == 3
     # Because mock_client.get.return_value returns the same for all 7 resources
     # The HashableResource is the same for each.
-    assert len(resource_status) == 2
+    assert len(resource_status) == 1
 
 
 def test_apply_resources(manifest, lk_client, caplog):
     manifest.apply_manifests()
-    assert lk_client.apply.call_count == 4
-    assert sorted(caplog.messages[:4]) == [
+    assert lk_client.apply.call_count == 3
+    assert sorted(caplog.messages[:3]) == [
         "Applying Deployment/kube-system/test-manifest-deployment",
-        "Applying Namespace/default",
         "Applying Secret/kube-system/test-manifest-secret",
         "Applying ServiceAccount/kube-system/test-manifest-manager",
     ]
@@ -123,7 +122,7 @@ def test_installed_resources(manifest, lk_client):
     with mock.patch.object(lk_client, "get") as mock_get:
         mock_get.side_effect = mock_get_responder
         rscs = manifest.installed_resources()
-    assert mock_get.call_count == 4
+    assert mock_get.call_count == 3
 
     assert len(rscs) > 1, "1 service account in kube-system namespace"
     element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
@@ -136,7 +135,7 @@ def test_labelled_resources(manifest, lk_client):
     with mock.patch.object(lk_client, "list") as mock_list:
         mock_list.side_effect = mock_list_responder
         rscs = manifest.labelled_resources()
-    assert mock_list.call_count == 4
+    assert mock_list.call_count == 3
 
     assert len(rscs) > 1, "1 service account in kube-system namespace"
     element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
@@ -165,7 +164,7 @@ def test_delete_one_resource(manifest, lk_client, caplog):
 def test_delete_current_resources(manifest, lk_client, caplog):
     with mock.patch.object(lk_client, "delete") as mock_delete:
         manifest.delete_manifests()
-    assert len(caplog.messages) == 4, "Should delete the 4 resources in this release"
+    assert len(caplog.messages) == 3, "Should delete the 3 resources in this release"
     assert all(msg.startswith("Deleting") for msg in caplog.messages)
 
     rscs = manifest.resources

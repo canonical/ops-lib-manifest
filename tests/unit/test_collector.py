@@ -37,7 +37,6 @@ def test_collector_list_resources_all(manifest):
             "test-manifest missing": "\n".join(
                 [
                     "Deployment/kube-system/test-manifest-deployment",
-                    "Namespace/default",
                     "Secret/kube-system/test-manifest-secret",
                     "ServiceAccount/kube-system/test-manifest-manager",
                 ]
@@ -104,5 +103,4 @@ def test_collector_unready(manifest, lk_client):
         mock_get.side_effect = mock_get_responder
         assert collector.unready == [
             template.format("Deployment/kube-system/test-manifest-deployment"),
-            template.format("Namespace/default"),
         ]

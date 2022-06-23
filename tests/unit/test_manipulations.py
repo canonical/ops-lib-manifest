@@ -59,18 +59,31 @@ def test_config_registry_of_daemonset():
     )
 
 
-def test_manifest_label():
-    manifest = mock.MagicMock()
-    manifest.name = "my-manifest"
+def test_manifest_label(manifest):
     obj = from_dict(
-        dict(apiVersion="v1", kind="Secret", metadata=dict(name="super-secret"))
+        dict(
+            apiVersion="v1",
+            kind="Secret",
+            metadata=dict(name="super-secret", labels={"pre-existing": "label"}),
+        )
     )
 
     adjustment = ManifestLabel(manifest)
     adjustment(obj)
 
     assert obj.metadata, "Should have metadata"
-    assert obj.metadata.labels == {manifest.name: "true"}, "Should have a label set"
+    assert (
+        obj.metadata.labels["pre-existing"] == "label"
+    ), "Should leave existing labels alone"
+    assert (
+        obj.metadata.labels["juju.io/application"] == "unit-testing"
+    ), "Should add the application label"
+    assert (
+        obj.metadata.labels["juju.io/manifest"] == "test-manifest"
+    ), "Should add the manifest name"
+    assert (
+        obj.metadata.labels["juju.io/manifest-version"] == "test-manifest-v0.2"
+    ), "Should add the manifest label with current-version"
 
 
 def test_update_pod_toleration():

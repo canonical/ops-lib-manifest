@@ -103,11 +103,14 @@ class ExampleCharm(CharmBase):
         self.collector = Collector(*self.manifests)
 
         # Register actions callbacks
-        self.framework.observe(self.on.list_versions_action, self.collector.list_versions)
+        self.framework.observe(self.on.list_versions_action, self._list_versions)
         
         # Register updstate status callbacks
         self.framework.observe(self.on.update_status, self._update_status)
     
+    def _list_versions(self, event):
+        self.collector.list_versions(event)
+
     def _update_status(self, _):
         unready = self.collector.unready
         if unready:

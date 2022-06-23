@@ -3,7 +3,7 @@
 """Classes used for mutating or adding to manifests."""
 
 import logging
-from typing import Callable, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
@@ -41,32 +41,42 @@ class Addition(Manipulation):
 class CreateNamespace(Addition):
     """Class used to create additional namespace before apply manifests."""
 
-    def __init__(self, manifests: "Manifests", namespace="") -> None:
+    def __init__(self, manifests: "Manifests", namespace: str = "") -> None:
         super().__init__(manifests)
         self.namespace = namespace
 
     def __call__(self) -> Optional[AnyResource]:
         """Create the default namespace if available."""
-        which_ns = self.namespace or self.manifests.namespace
-        if which_ns:
+        if self.namespace:
             return codecs.from_dict(
                 dict(
                     apiVersion="v1",
                     kind="Namespace",
-                    metadata=dict(name=which_ns),
+                    metadata=dict(name=self.namespace),
                 )
             )
         return None
 
 
 class ManifestLabel(Patch):
-    """Ensure every manifest item is labeled with the manifest name."""
+    """Ensure every manifest item is labeled with the manifest name.
+
+    Similar to helm charts, add to each metadata some information
+    regarding what applied this resource up
+    https://helm.sh/docs/chart_best_practices/labels/
+    """
 
     def __call__(self, obj: AnyResource):
         """Adds manifest.name label to obj."""
         if obj.metadata:
+            version = self.manifests.current_release
+            labels = {
+                "juju.io/application": self.manifests.app_name,
+                "juju.io/manifest": self.manifests.name,
+                "juju.io/manifest-version": f"{self.manifests.name}-{version}",
+            }
             obj.metadata.labels = obj.metadata.labels or {}  # ensure object has labels
-            obj.metadata.labels[self.manifests.name] = "true"
+            obj.metadata.labels.update(**labels)
 
 
 class ConfigRegistry(Patch):

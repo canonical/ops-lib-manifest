@@ -5,3 +5,9 @@ metadata:
   name: test-manifest-manager
   namespace: kube-system
 
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-manifest-manager
+  namespace: kube-system

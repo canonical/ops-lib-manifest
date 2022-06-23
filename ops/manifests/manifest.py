@@ -18,7 +18,7 @@ from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
 from lightkube.models.meta_v1 import Time
 
-from .manipulations import ManifestLabel, CreateNamespace, Addition, Patch
+from .manipulations import Addition, ManifestLabel, Manipulation, Patch
 
 log = logging.getLogger(__file__)
 
@@ -107,45 +107,48 @@ class HashableResource:
 class Manifests:
     """Class used to apply manifest files from a release directory.
 
-    @param str name: name used in the field manager of the lightkube client and used
-                     as the label when applying manifest objects.
-    @param PathLike base_path: path to folder containing manifest files for various
-                               releases
+    base_path should link to a folder heirarchy
 
-        base_path should link to a folder heirarchy
-
-        <base_path>
-        ├── version                  - a file containing the default version
-        ├── manifests                - a folder containing all the releases
-        │   ├── v1.1.10              - a folder matching a configurable version
-        │   │   ├── manifest-1.yaml  - any file with a `.yaml` file type
-        │   │   └── manifest-2.yaml
-        │   ├── v1.1.11
-        │   │   ├── manifest-1.yaml
-        │   │   └── manifest-2.yaml
-        │   │   └── manifest-3.yaml
-
+    <base_path>
+    ├── version                  - a file containing the default version
+    ├── manifests                - a folder containing all the releases
+    │   ├── v1.1.10              - a folder matching a configurable version
+    │   │   ├── manifest-1.yaml  - any file with a `.yaml` file type
+    │   │   └── manifest-2.yaml
+    │   ├── v1.1.11
+    │   │   ├── manifest-1.yaml
+    │   │   └── manifest-2.yaml
+    │   │   └── manifest-3.yaml
     """
 
     def __init__(
-        self, name: str, base_path: PathLike, manipulations=None, default_namespace=""
+        self,
+        name: str,
+        app_name: str,
+        base_path: PathLike,
+        manipulations: List[Manipulation] = None,
     ):
+        """Create Manifests object.
+
+        @param name:         Uniquely idenitifes these released manifests.
+        @param app_name:     Charm application name which deploys this manifest.
+        @param base_path:    path to folder containing manifest files for various
+                             releases.
+        @param manipulations list of manipulation objects which will alter the existing
+                             resources in the manifest files.
+                             ~ defaults to updating the label ~
+        """
+
         self.name = name
+        self.app_name = app_name
         self.base_path = Path(base_path)
-        self.namespace = default_namespace
-        self.manipulations = (
-            manipulations
-            if manipulations is not None
-            else [
-                ManifestLabel(self),
-                CreateNamespace(self),
-            ]
-        )
+        if manipulations is None:
+            self.manipulations = [ManifestLabel(self)]
 
     @cached_property
     def client(self) -> Client:
         """Lazy evaluation of the lightkube client."""
-        return Client(namespace=self.namespace, field_manager=self.name)
+        return Client(field_manager=f"{self.app_name}-{self.name}")
 
     @property
     def config(self) -> Dict:
@@ -255,7 +258,10 @@ class Manifests:
             for rsc in self.client.list(
                 ns_kind.kind,
                 namespace=ns_kind.namespace,
-                labels={self.name: "true"},
+                labels={
+                    "juju.io/application": self.app_name,
+                    "juju.io/manifest": self.name,
+                },
             )
         }
 
