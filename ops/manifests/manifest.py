@@ -5,11 +5,11 @@
 import logging
 import os
 import re
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Union
+from typing import cast, Dict, FrozenSet, List, Optional, Union
 
 import yaml
 from backports.cached_property import cached_property
@@ -194,9 +194,9 @@ class Manifests:
         return self.config.get("release") or self.default_release or self.latest_release
 
     @property
-    def resources(self) -> Set[HashableResource]:
+    def resources(self) -> FrozenSet[HashableResource]:
         """All component resource sets subdivided by kind and namespace."""
-        result: Set[HashableResource] = set()
+        result: Dict[HashableResource, None] = OrderedDict()
         ver = self.current_release
 
         # Generated additions
@@ -205,14 +205,14 @@ class Manifests:
                 obj = manipulate()
                 if not obj:
                     continue
-                result.add(HashableResource(obj))
+                result[HashableResource(obj)] = None
 
         # From static manifests
         for manifest in (self.manifest_path / ver).glob("*.yaml"):
             for obj in self._safe_load(manifest):
-                result.add(HashableResource(obj))
+                result[HashableResource(obj)] = None
 
-        return result
+        return cast(FrozenSet[HashableResource], result.keys())
 
     @lru_cache()
     def _safe_load(self, filepath: Path) -> List[AnyResource]:
@@ -228,13 +228,13 @@ class Manifests:
             for item in (rsc["items"] if rsc["kind"] == "List" else [rsc])
         ]
 
-    def status(self) -> Set[HashableResource]:
+    def status(self) -> FrozenSet[HashableResource]:
         """Returns all installed objects which have a `.status.conditions` attribute."""
-        return set(obj for obj in self.installed_resources() if obj.status_conditions)
+        return frozenset(_ for _ in self.installed_resources() if _.status_conditions)
 
-    def installed_resources(self) -> Set[HashableResource]:
+    def installed_resources(self) -> FrozenSet[HashableResource]:
         """All currently installed resources expected by this manifest."""
-        result: Set[HashableResource] = set()
+        result: Dict[HashableResource, None] = OrderedDict()
         for obj in self.resources:
             try:
                 next_rsc = self.client.get(
@@ -244,10 +244,10 @@ class Manifests:
                 )
             except ApiError:
                 continue
-            result.add(HashableResource(next_rsc))
-        return result
+            result[HashableResource(next_rsc)] = None
+        return cast(FrozenSet[HashableResource], result.keys())
 
-    def labelled_resources(self) -> Set[HashableResource]:
+    def labelled_resources(self) -> FrozenSet[HashableResource]:
         """Set of any installed resource ever labeled by this manifest."""
 
         NamespaceKind = namedtuple("NamespaceKind", "namespace, kind")
@@ -255,7 +255,7 @@ class Manifests:
             NamespaceKind(obj.namespace, type(obj.resource)) for obj in self.resources
         )
 
-        return {
+        return frozenset(
             HashableResource(rsc)
             for ns_kind in ns_kinds
             for rsc in self.client.list(
@@ -266,7 +266,7 @@ class Manifests:
                     "juju.io/manifest": self.name,
                 },
             )
-        }
+        )
 
     def apply_manifests(self):
         """Apply all manifest files from the current release."""
