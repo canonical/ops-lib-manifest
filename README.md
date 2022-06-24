@@ -164,7 +164,10 @@ relation or config data.
     * this can be compared with the `resources` property to look for extra resources 
       installed which are no longer necessary.
 * `apply_manifests()`
-    * applies the current release resources into the cluster.
+    * applies all resources from the current release into the cluster.
+    * resources are force applied, overwriting existing resources.
+* `apply_resources(*resources)` and `apply_resource(...)`
+    * applies itemized resources into the cluster.
     * resources are force applied, overwriting existing resources.
 * `delete_manifests(...)`
     * will delete all current release resources from the cluster
