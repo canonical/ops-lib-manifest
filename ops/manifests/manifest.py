@@ -5,7 +5,7 @@
 import logging
 import os
 import re
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict, namedtuple
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -200,24 +200,35 @@ class Manifests:
         Order is guaranteed to be:
         * Addition Manipulations
         * Manifest files contents
+        * Patches applied to all
         """
-        result: Dict[HashableResource, None] = OrderedDict()
-        ver = self.current_release
 
-        # Generated additions
-        for manipulate in self.manipulations:
-            if isinstance(manipulate, Addition):
-                obj = manipulate()
-                if not obj:
-                    continue
-                result[HashableResource(obj)] = None
+        # Generate Addition resources
+        additions: List[AnyResource] = list(
+            filter(
+                None,
+                (
+                    manipulate()
+                    for manipulate in self.manipulations
+                    if isinstance(manipulate, Addition)
+                ),
+            )
+        )
 
-        # From static manifests
-        for manifest in (self.manifest_path / ver).glob("*.yaml"):
-            for obj in self._safe_load(manifest):
-                result[HashableResource(obj)] = None
+        # Generate Static resources
+        ymls = Path(self.manifest_path / self.current_release).glob("*.yaml")
+        statics = [rsc for yml in ymls for rsc in self._safe_load(yml)]
 
-        return result.keys()
+        # Apply manipulations
+        all_resources = additions + statics
+        for rsc in all_resources:
+            for manipulate in self.manipulations:
+                if isinstance(manipulate, Patch):
+                    manipulate(rsc)
+
+        return OrderedDict(
+            (HashableResource(obj), None) for obj in all_resources
+        ).keys()
 
     @lru_cache()
     def _safe_load(self, filepath: Path) -> List[AnyResource]:
@@ -254,7 +265,6 @@ class Manifests:
 
     def labelled_resources(self) -> FrozenSet[HashableResource]:
         """Any resource ever installed and labeled by this class."""
-
         NamespaceKind = namedtuple("NamespaceKind", "namespace, kind")
         ns_kinds = set(
             NamespaceKind(obj.namespace, type(obj.resource)) for obj in self.resources
@@ -277,10 +287,6 @@ class Manifests:
         """Apply all manifest files from the current release after manipulating."""
         log.info(f"Applying {self.name} version: {self.current_release}")
         for rsc in self.resources:
-            for manipulate in self.manipulations:
-                if isinstance(manipulate, Patch):
-                    manipulate(rsc.resource)
-
             log.info(f"Applying {rsc}")
             try:
                 self.client.apply(rsc.resource, force=True)
