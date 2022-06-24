@@ -293,9 +293,9 @@ class Manifests:
         self.delete_resources(*self.resources, **kwargs)
 
     def apply_resources(self, *resources: HashableResource):
-        """Apply all manifest files from the current release after manipulating.
+        """Apply set of resources to the cluster.
 
-        @param *resources: set of resourecs to apply, if empty apply all
+        @param *resources: set of resourecs to apply
         """
         for rsc in resources:
             log.info(f"Applying {rsc}")
