@@ -10,7 +10,7 @@ from lightkube.codecs import AnyResource
 from lightkube.models.core_v1 import Toleration
 
 if TYPE_CHECKING:
-    from .manifest import Manifests
+    from .manifest import Manifests  # pragma: no cover
 
 log = logging.getLogger(__file__)
 
@@ -41,22 +41,20 @@ class Addition(Manipulation):
 class CreateNamespace(Addition):
     """Class used to create additional namespace before apply manifests."""
 
-    def __init__(self, manifests: "Manifests", namespace: str = "") -> None:
+    def __init__(self, manifests: "Manifests", namespace: str) -> None:
         super().__init__(manifests)
         self.namespace = namespace
 
     def __call__(self) -> Optional[AnyResource]:
         """Create the default namespace if available."""
-        if self.namespace:
-            log.info(f"Creating namespace {self.namespace}")
-            return codecs.from_dict(
-                dict(
-                    apiVersion="v1",
-                    kind="Namespace",
-                    metadata=dict(name=self.namespace),
-                )
+        log.info(f"Creating namespace {self.namespace}")
+        return codecs.from_dict(
+            dict(
+                apiVersion="v1",
+                kind="Namespace",
+                metadata=dict(name=self.namespace),
             )
-        return None
+        )
 
 
 class ManifestLabel(Patch):

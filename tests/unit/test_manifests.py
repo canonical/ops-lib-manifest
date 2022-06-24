@@ -108,7 +108,23 @@ def test_status(manifest, lk_client):
     assert len(resource_status) == 1
 
 
+def test_apply_resource_empty(manifest, lk_client, caplog):
+    manifest.apply_resource()
+    assert lk_client.apply.call_count == 0
+    assert caplog.messages == ["Applied 0 Resources"]
+
+
 def test_apply_resources(manifest, lk_client, caplog):
+    (secret,) = (_ for _ in manifest.resources if _.kind == "Secret")
+    manifest.apply_resources(secret)
+    assert lk_client.apply.call_count == 1
+    assert caplog.messages == [
+        "Applying Secret/kube-system/test-manifest-secret",
+        "Applied 1 Resources",
+    ]
+
+
+def test_apply_manifests(manifest, lk_client, caplog):
     manifest.apply_manifests()
     assert lk_client.apply.call_count == 3
     assert caplog.messages == [
@@ -116,7 +132,20 @@ def test_apply_resources(manifest, lk_client, caplog):
         "Applying ServiceAccount/kube-system/test-manifest-manager",
         "Applying Secret/kube-system/test-manifest-secret",
         "Applying Deployment/kube-system/test-manifest-deployment",
-        "Applying Complete",
+        "Applied 3 Resources",
+    ]
+
+
+def test_apply_failure(manifest, lk_client, api_error_klass, caplog):
+    lk_client.apply.side_effect = [mock.MagicMock(), api_error_klass]
+    with pytest.raises(api_error_klass):
+        manifest.apply_manifests()
+    assert lk_client.apply.call_count == 2
+    assert caplog.messages == [
+        "Applying test-manifest version: v0.2",
+        "Applying ServiceAccount/kube-system/test-manifest-manager",
+        "Applying Secret/kube-system/test-manifest-secret",
+        "Failed Applying Secret/kube-system/test-manifest-secret",
     ]
 
 
@@ -126,11 +155,19 @@ def test_installed_resources(manifest, lk_client):
         rscs = manifest.installed_resources()
     assert mock_get.call_count == 3
 
-    assert len(rscs) > 1, "1 service account in kube-system namespace"
+    assert len(rscs) == 3, "3 installed resources"
     element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
     assert element.namespace == "kube-system"
     assert element.name == "test-manifest-manager"
     assert element.kind == "ServiceAccount"
+
+
+def test_installed_resources_fails(manifest, lk_client, api_error_klass):
+    with mock.patch.object(lk_client, "get") as mock_get:
+        mock_get.side_effect = api_error_klass
+        rscs = manifest.installed_resources()
+    assert mock_get.call_count == 3
+    assert len(rscs) == 0, "No resources expected to be installed."
 
 
 def test_labelled_resources(manifest, lk_client):

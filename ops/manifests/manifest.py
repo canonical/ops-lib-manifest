@@ -286,18 +286,25 @@ class Manifests:
     def apply_manifests(self):
         """Apply all manifest files from the current release after manipulating."""
         log.info(f"Applying {self.name} version: {self.current_release}")
-        for rsc in self.resources:
+        self.apply_resources(*self.resources)
+
+    def delete_manifests(self, **kwargs):
+        """Delete all manifests associated with the current release."""
+        self.delete_resources(*self.resources, **kwargs)
+
+    def apply_resources(self, *resources: HashableResource):
+        """Apply all manifest files from the current release after manipulating.
+
+        @param *resources: set of resourecs to apply, if empty apply all
+        """
+        for rsc in resources:
             log.info(f"Applying {rsc}")
             try:
                 self.client.apply(rsc.resource, force=True)
             except ApiError:
                 log.exception(f"Failed Applying {rsc}")
                 raise
-        log.info("Applying Complete")
-
-    def delete_manifests(self, **kwargs):
-        """Delete all manifests associated with the current release."""
-        self.delete_resources(*self.resources, **kwargs)
+        log.info(f"Applied {len(resources)} Resources")
 
     def delete_resources(
         self,
@@ -332,4 +339,5 @@ class Manifests:
                     )
                     raise
 
+    apply_resource = apply_resources
     delete_resource = delete_resources
