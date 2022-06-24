@@ -6,12 +6,7 @@ from collections import namedtuple
 
 import pytest
 
-from ops.manifests import HashableResource, Manifests, NamespaceKind
-
-
-def test_namespace_kind():
-    assert str(NamespaceKind("object", "default")) == "object/default"
-    assert str(NamespaceKind("object", None)) == "object"
+from ops.manifests import HashableResource, Manifests
 
 
 @pytest.mark.parametrize("namespace", [None, "default"])
@@ -30,33 +25,15 @@ def test_hashable_resource(namespace):
 
 
 def test_manifest():
-    m1 = Manifests("m1", "tests/data/mock_manifests")
-    m2 = Manifests("m2", "tests/data/mock_manifests")
+    m1 = Manifests("m1", "unit-testing", "tests/data/mock_manifests")
+    m2 = Manifests("m2", "unit-testing", "tests/data/mock_manifests")
     assert m1.name != m2.name
 
 
 def test_manifest_without_config():
-    m1 = Manifests("m1", "tests/data/mock_manifests")
+    m1 = Manifests("m1", "unit-testing", "tests/data/mock_manifests")
     with pytest.raises(NotImplementedError):
         _ = m1.config
-
-
-@pytest.fixture
-def manifest():
-    class TestManifests(Manifests):
-        def __init__(self):
-            self.data = {}
-            super().__init__(
-                "test-manifest",
-                "tests/data/mock_manifests",
-                default_namespace="default",
-            )
-
-        @property
-        def config(self):
-            return self.data
-
-    yield TestManifests()
 
 
 def test_releases(manifest):
@@ -84,136 +61,154 @@ def test_current_release(manifest):
         manifest.default_release == "v0.3.1"  # absence of a default_release
 
 
-@pytest.mark.parametrize("release, uniqs", [("v0.1", 1), ("v0.2", 4), ("v0.3.1", 2)])
+@pytest.mark.parametrize("release, uniqs", [("v0.1", 0), ("v0.2", 3), ("v0.3.1", 1)])
 def test_resources_version(manifest, release, uniqs):
     manifest.data["release"] = release
     rscs = manifest.resources
     assert (
         len(rscs) == uniqs
     ), f"{uniqs} unique namespace kind resources in {manifest.current_release}"
-    if uniqs <= 1:
+    if uniqs < 1:
         return
 
-    key = NamespaceKind("ServiceAccount", "kube-system")
-    assert len(rscs[key]) == 1, "1 service account in kube-system namespace"
-    element = next(iter(rscs[key]))
+    assert len(rscs) > 0, "1 service account in kube-system namespace"
+    element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
     assert element.namespace == "kube-system"
     assert element.name == "test-manifest-manager"
     assert element.kind == "ServiceAccount"
 
 
 def mock_get_responder(klass, name, namespace=None):
+    Condition = namedtuple("Condition", "status,type")
     response = mock.MagicMock(spec=klass)
-    response.kind = "ServiceAccount"
+    response.kind = klass.__name__
     response.metadata.name = name
     response.metadata.namespace = namespace
+    if hasattr(response, "status"):
+        response.status.conditions = [Condition("False", "Ready")]
     return response
 
 
 def mock_list_responder(klass, namespace=None, labels=None):
     response = mock.MagicMock(spec=klass)
-    response.kind = "ServiceAccount"
+    response.kind = klass.__name__
     response.metadata.name = "mock-item"
     response.metadata.namespace = namespace
     response.metadata.labels = labels
     return [response]
 
 
-def test_status(manifest):
-    Condition = namedtuple("Condition", "status,type")
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
-        resource = mock_client.get.return_value
-        resource.kind = "ServiceAccount"
-        resource.status.conditions = [Condition("False", "Ready")]
+def test_status(manifest, lk_client):
+    with mock.patch.object(lk_client, "get") as mock_get:
+        mock_get.side_effect = mock_get_responder
         resource_status = manifest.status()
-    assert mock_client.get.call_count == 4
+    assert mock_get.call_count == 3
     # Because mock_client.get.return_value returns the same for all 7 resources
     # The HashableResource is the same for each.
     assert len(resource_status) == 1
 
 
+def test_apply_resource_empty(manifest, lk_client, caplog):
+    manifest.apply_resource()
+    assert lk_client.apply.call_count == 0
+    assert caplog.messages == ["Applied 0 Resources"]
+
+
 def test_apply_resources(manifest, lk_client, caplog):
+    (secret,) = (_ for _ in manifest.resources if _.kind == "Secret")
+    manifest.apply_resources(secret)
+    assert lk_client.apply.call_count == 1
+    assert caplog.messages == [
+        "Applying Secret/kube-system/test-manifest-secret",
+        "Applied 1 Resources",
+    ]
+
+
+def test_apply_manifests(manifest, lk_client, caplog):
     manifest.apply_manifests()
-    assert lk_client.apply.call_count == 4
-    assert caplog.messages[0] == "Applying Namespace/default"
-    assert (
-        caplog.messages[1]
-        == "Applying ServiceAccount/kube-system/test-manifest-manager"
-    )
-    assert caplog.messages[2] == "Applying Secret/kube-system/test-manifest-secret"
-    assert (
-        caplog.messages[3] == "Applying Deployment/kube-system/test-manifest-deployment"
-    )
+    assert lk_client.apply.call_count == 3
+    assert caplog.messages == [
+        "Applying test-manifest version: v0.2",
+        "Applying ServiceAccount/kube-system/test-manifest-manager",
+        "Applying Secret/kube-system/test-manifest-secret",
+        "Applying Deployment/kube-system/test-manifest-deployment",
+        "Applied 3 Resources",
+    ]
 
 
-def test_expected_resources(manifest):
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
-        mock_client.get.side_effect = mock_get_responder
-        rscs = manifest.expected_resources()
-    assert mock_client.get.call_count == 4
+def test_apply_failure(manifest, lk_client, api_error_klass, caplog):
+    lk_client.apply.side_effect = [mock.MagicMock(), api_error_klass]
+    with pytest.raises(api_error_klass):
+        manifest.apply_manifests()
+    assert lk_client.apply.call_count == 2
+    assert caplog.messages == [
+        "Applying test-manifest version: v0.2",
+        "Applying ServiceAccount/kube-system/test-manifest-manager",
+        "Applying Secret/kube-system/test-manifest-secret",
+        "Failed Applying Secret/kube-system/test-manifest-secret",
+    ]
 
-    key = NamespaceKind("ServiceAccount", "kube-system")
-    assert len(rscs[key]) == 1, "1 service account in kube-system namespace"
-    element = next(iter(rscs[key]))
+
+def test_installed_resources(manifest, lk_client):
+    with mock.patch.object(lk_client, "get") as mock_get:
+        mock_get.side_effect = mock_get_responder
+        rscs = manifest.installed_resources()
+    assert mock_get.call_count == 3
+
+    assert len(rscs) == 3, "3 installed resources"
+    element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
     assert element.namespace == "kube-system"
     assert element.name == "test-manifest-manager"
     assert element.kind == "ServiceAccount"
 
 
-def test_active_resources(manifest):
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
-        mock_client.list.side_effect = mock_list_responder
-        rscs = manifest.active_resources()
-    assert mock_client.list.call_count == 4
+def test_installed_resources_fails(manifest, lk_client, api_error_klass):
+    with mock.patch.object(lk_client, "get") as mock_get:
+        mock_get.side_effect = api_error_klass
+        rscs = manifest.installed_resources()
+    assert mock_get.call_count == 3
+    assert len(rscs) == 0, "No resources expected to be installed."
 
-    key = NamespaceKind("ServiceAccount", "kube-system")
-    assert len(rscs[key]) == 1, "1 service account in kube-system namespace"
-    element = next(iter(rscs[key]))
+
+def test_labelled_resources(manifest, lk_client):
+    with mock.patch.object(lk_client, "list") as mock_list:
+        mock_list.side_effect = mock_list_responder
+        rscs = manifest.labelled_resources()
+    assert mock_list.call_count == 3
+
+    assert len(rscs) > 1, "1 service account in kube-system namespace"
+    element = next(rsc for rsc in rscs if rsc.kind == "ServiceAccount")
     assert element.namespace == "kube-system"
     assert element.name == "mock-item"
     assert element.kind == "ServiceAccount"
 
 
-def test_delete_no_resources(manifest):
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
+def test_delete_no_resources(manifest, lk_client):
+    with mock.patch.object(lk_client, "delete") as mock_delete:
         manifest.delete_resource()
-    mock_client.delete.assert_not_called()
+    mock_delete.assert_not_called()
 
 
-def test_delete_one_resource(manifest, caplog):
+def test_delete_one_resource(manifest, lk_client, caplog):
     rscs = manifest.resources
-    key = NamespaceKind("Secret", "kube-system")
-    element = next(iter(rscs[key]))
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
+    element = next(rsc for rsc in rscs if rsc.kind == "Secret")
+    with mock.patch.object(lk_client, "delete") as mock_delete:
         manifest.delete_resource(element)
-    mock_client.delete.assert_called_once_with(
+    mock_delete.assert_called_once_with(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
     assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret"
 
 
-def test_delete_current_resources(manifest, caplog):
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
+def test_delete_current_resources(manifest, lk_client, caplog):
+    with mock.patch.object(lk_client, "delete") as mock_delete:
         manifest.delete_manifests()
-    assert len(caplog.messages) == 4, "Should delete the 4 resources in this release"
+    assert len(caplog.messages) == 3, "Should delete the 3 resources in this release"
     assert all(msg.startswith("Deleting") for msg in caplog.messages)
 
     rscs = manifest.resources
-    key = NamespaceKind("Secret", "kube-system")
-    element = next(iter(rscs[key]))
-    mock_client.delete.assert_any_call(
+    element = next(rsc for rsc in rscs if rsc.kind == "Secret")
+    mock_delete.assert_any_call(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
 
@@ -229,20 +224,20 @@ def test_delete_current_resources(manifest, caplog):
     ],
     ids=["Not found ignored", "Unauthorized ignored"],
 )
-def test_delete_resource_errors(manifest, api_error_klass, caplog, status, log_format):
+def test_delete_resource_errors(
+    manifest, api_error_klass, lk_client, caplog, status, log_format
+):
     rscs = manifest.resources
-    key = NamespaceKind("Secret", "kube-system")
-    element = next(iter(rscs[key]))
+    element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     api_error_klass.status.message = status
 
-    with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
-        mock_client.delete.side_effect = api_error_klass
+    with mock.patch.object(lk_client, "delete") as mock_delete:
+        mock_delete.side_effect = api_error_klass
         manifest.delete_resource(
             element, ignore_unauthorized=True, ignore_not_found=True
         )
-    mock_client.delete.assert_called_once_with(
+
+    mock_delete.assert_called_once_with(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
     assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret"
@@ -262,8 +257,7 @@ def test_delete_resource_errors(manifest, api_error_klass, caplog, status, log_f
 )
 def test_delete_resource_raised(manifest, api_error_klass, caplog, status, log_format):
     rscs = manifest.resources
-    key = NamespaceKind("Secret", "kube-system")
-    element = next(iter(rscs[key]))
+    element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     api_error_klass.status.message = status
 
     with mock.patch.object(
