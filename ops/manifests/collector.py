@@ -5,7 +5,8 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable, List, MutableMapping, Optional
 
-from ops.manifests.manifest import HashableResource, Manifests
+from .manifest import Manifests
+from .manipulations import HashableResource
 
 
 @dataclass
