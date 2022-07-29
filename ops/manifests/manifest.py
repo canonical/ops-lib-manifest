@@ -6,7 +6,6 @@ import logging
 import os
 import re
 from collections import OrderedDict, namedtuple
-from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, FrozenSet, KeysView, List, Optional, Union
@@ -16,9 +15,15 @@ from backports.cached_property import cached_property
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
-from lightkube.models.meta_v1 import Time
 
-from .manipulations import Addition, ManifestLabel, Manipulation, Patch
+from .manipulations import (
+    Addition,
+    ManifestLabel,
+    Manipulation,
+    Patch,
+    Subtraction,
+    HashableResource,
+)
 
 log = logging.getLogger(__file__)
 
@@ -33,75 +38,6 @@ def _by_version(version: str) -> Version:
         return int(part) if part.isdigit() else part
 
     return [convert(c) for c in _VERSION_SPLIT.split(version)]
-
-
-@dataclass
-class AnyCondition:
-    """Condition describes the state of a resources at a certain point.
-
-    **parameters**
-
-    * **status** ``str`` - Status of the condition, one of True, False, Unknown.
-    * **type** ``str`` - Type of replica set condition.
-    * **lastTransitionTime** ``meta_v1.Time`` - *(optional)* The last time the condition
-                                                transitioned from one status to another.
-    * **message** ``str`` - *(optional)* A human readable message indicating details
-                                         about the transition.
-    * **reason** ``str`` - *(optional)* The reason for the condition's last transition.
-    """
-
-    status: "str"
-    type: "str"
-    lastTransitionTime: Optional[Time] = None
-    message: Optional[str] = None
-    reason: Optional[str] = None
-
-
-class HashableResource:
-    """Wraps a lightkube resource object so it is hashable."""
-
-    def __init__(self, resource: AnyResource):
-        self.resource = resource
-
-    def __uniq(self):
-        return self.kind, self.namespace, self.name
-
-    @property
-    def status_conditions(self) -> List[AnyCondition]:
-        status = getattr(self.resource, "status", None)
-        if not status:
-            return []
-        return getattr(self.resource.status, "conditions", [])
-
-    @property
-    def kind(self) -> str:
-        """Return the resource's kind."""
-        return self.resource.kind or type(self.resource).__name__
-
-    @property
-    def namespace(self) -> Optional[str]:
-        """Return the resource's namespace."""
-        return self.resource.metadata.namespace if self.resource.metadata else None
-
-    @property
-    def name(self) -> Optional[str]:
-        """Return the resource's name."""
-        return self.resource.metadata.name if self.resource.metadata else None
-
-    def __str__(self):
-        """String version of the unique parts.
-
-        example: 'kind/[namespace/]name'
-        """
-        return "/".join(filter(None, self.__uniq()))
-
-    def __hash__(self):
-        """Returns a hash of the unique parts."""
-        return hash(self.__uniq())
-
-    def __eq__(self, other):
-        """Comparison only of the unique parts."""
-        return isinstance(other, HashableResource) and other.__uniq() == self.__uniq()
 
 
 class Manifests:
@@ -199,6 +135,7 @@ class Manifests:
 
         Order is guaranteed to be:
         * Addition Manipulations
+        * Subtraction Manipulations
         * Manifest files contents
         * Patches applied to all
         """
@@ -218,6 +155,11 @@ class Manifests:
         # Generate Static resources
         ymls = Path(self.manifest_path / self.current_release).glob("*.yaml")
         statics = [rsc for yml in ymls for rsc in self._safe_load(yml)]
+
+        # Apply subtractions
+        for manipulate in self.manipulations:
+            if isinstance(manipulate, Subtraction):
+                statics = [rsc for rsc in statics if not manipulate(rsc)]
 
         # Apply manipulations
         all_resources = additions + statics

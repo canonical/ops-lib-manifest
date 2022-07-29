@@ -5,7 +5,8 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable, List, MutableMapping, Optional
 
-from ops.manifests.manifest import HashableResource, Manifests
+from .manifest import Manifests
+from .manipulations import HashableResource
 
 
 @dataclass
@@ -44,7 +45,7 @@ class Collector:
     def list_versions(self, event) -> None:
         """Respond to list_versions action."""
         result = {
-            f"{name} versions": "\n".join(str(_) for _ in manifest.releases)
+            f"{name}-versions": "\n".join(str(_) for _ in manifest.releases)
             for name, manifest in self.manifests.items()
         }
         event.set_results(result)
@@ -127,9 +128,9 @@ class Collector:
             results[name] = _ResourceAnalysis(correct, extra, missing)
             event_result.update(
                 {
-                    f"{name} correct": "\n".join(sorted(str(_) for _ in correct)),
-                    f"{name} extra": "\n".join(sorted(str(_) for _ in extra)),
-                    f"{name} missing": "\n".join(sorted(str(_) for _ in missing)),
+                    f"{name}-correct": "\n".join(sorted(str(_) for _ in correct)),
+                    f"{name}-extra": "\n".join(sorted(str(_) for _ in extra)),
+                    f"{name}-missing": "\n".join(sorted(str(_) for _ in missing)),
                 }
             )
 

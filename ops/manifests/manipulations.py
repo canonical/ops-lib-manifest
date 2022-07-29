@@ -4,15 +4,86 @@
 
 import logging
 from typing import TYPE_CHECKING, Callable, List, Optional
+from dataclasses import dataclass
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
 from lightkube.models.core_v1 import Toleration
+from lightkube.models.meta_v1 import Time
 
 if TYPE_CHECKING:
     from .manifest import Manifests  # pragma: no cover
 
 log = logging.getLogger(__file__)
+
+
+@dataclass
+class AnyCondition:
+    """Condition describes the state of a resources at a certain point.
+
+    **parameters**
+
+    * **status** ``str`` - Status of the condition, one of True, False, Unknown.
+    * **type** ``str`` - Type of replica set condition.
+    * **lastTransitionTime** ``meta_v1.Time`` - *(optional)* The last time the condition
+                                                transitioned from one status to another.
+    * **message** ``str`` - *(optional)* A human readable message indicating details
+                                         about the transition.
+    * **reason** ``str`` - *(optional)* The reason for the condition's last transition.
+    """
+
+    status: "str"
+    type: "str"
+    lastTransitionTime: Optional[Time] = None
+    message: Optional[str] = None
+    reason: Optional[str] = None
+
+
+class HashableResource:
+    """Wraps a lightkube resource object so it is hashable."""
+
+    def __init__(self, resource: AnyResource):
+        self.resource = resource
+
+    def __uniq(self):
+        return self.kind, self.namespace, self.name
+
+    @property
+    def status_conditions(self) -> List[AnyCondition]:
+        status = getattr(self.resource, "status", None)
+        if not status:
+            return []
+        return getattr(self.resource.status, "conditions", [])
+
+    @property
+    def kind(self) -> str:
+        """Return the resource's kind."""
+        return self.resource.kind or type(self.resource).__name__
+
+    @property
+    def namespace(self) -> Optional[str]:
+        """Return the resource's namespace."""
+        return self.resource.metadata.namespace if self.resource.metadata else None
+
+    @property
+    def name(self) -> Optional[str]:
+        """Return the resource's name."""
+        return self.resource.metadata.name if self.resource.metadata else None
+
+    def __str__(self):
+        """String version of the unique parts.
+
+        example: 'kind/[namespace/]name'
+        """
+        return "/".join(filter(None, self.__uniq()))
+
+    def __hash__(self):
+        """Returns a hash of the unique parts."""
+        return hash(self.__uniq())
+
+    def __eq__(self, other):
+        """Comparison only of the unique parts."""
+        return isinstance(other, HashableResource) and other.__uniq() == self.__uniq()
 
 
 class Manipulation:
@@ -35,6 +106,14 @@ class Addition(Manipulation):
 
     def __call__(self) -> Optional[AnyResource]:
         """Method called to optionally create an object."""
+        ...
+
+
+class Subtraction(Manipulation):
+    """Class used to define objects to subtract from the original manifests."""
+
+    def __call__(self, obj: AnyResource) -> bool:
+        """Method called to optionally subtract an object."""
         ...
 
 
@@ -123,3 +202,20 @@ def update_toleration(obj: AnyResource, adjuster: TolerationAdjuster):
             log.info(f"Replacing toleration {toleration} with {adjustment}")
             new_tolerations += adjustment
     spec.tolerations = new_tolerations
+
+
+class SubtractEq(Subtraction):
+    """Ensure every manifest item is labeled with the manifest name.
+
+    Similar to helm charts, add to each metadata some information
+    regarding what applied this resource up
+    https://helm.sh/docs/chart_best_practices/labels/
+    """
+
+    def __init__(self, manifests: "Manifests", to_compare: AnyResource) -> None:
+        super().__init__(manifests)
+        self.to_compare = to_compare
+
+    def __call__(self, obj: AnyResource) -> bool:
+        """Returns true if obj == rsc based on kind, name, and namespace"""
+        return HashableResource(self.to_compare) == HashableResource(obj)
