@@ -128,9 +128,9 @@ class Collector:
             results[name] = _ResourceAnalysis(correct, extra, missing)
             event_result.update(
                 {
-                    f"{name} correct": "\n".join(sorted(str(_) for _ in correct)),
-                    f"{name} extra": "\n".join(sorted(str(_) for _ in extra)),
-                    f"{name} missing": "\n".join(sorted(str(_) for _ in missing)),
+                    f"{name}-correct": "\n".join(sorted(str(_) for _ in correct)),
+                    f"{name}-extra": "\n".join(sorted(str(_) for _ in extra)),
+                    f"{name}-missing": "\n".join(sorted(str(_) for _ in missing)),
                 }
             )
 
