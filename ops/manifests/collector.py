@@ -45,7 +45,7 @@ class Collector:
     def list_versions(self, event) -> None:
         """Respond to list_versions action."""
         result = {
-            f"{name} versions": "\n".join(str(_) for _ in manifest.releases)
+            f"{name}-versions": "\n".join(str(_) for _ in manifest.releases)
             for name, manifest in self.manifests.items()
         }
         event.set_results(result)
