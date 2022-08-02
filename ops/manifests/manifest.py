@@ -78,7 +78,7 @@ class Manifests:
         """
 
         self.name = name
-        self.model_name = name
+        self.model_name = model_name
         self.app_name = app_name
         self.base_path = Path(base_path)
         if manipulations is None:
