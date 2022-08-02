@@ -25,13 +25,19 @@ def test_hashable_resource(namespace):
 
 
 def test_manifest():
-    m1 = Manifests("m1", "unit-testing", "tests/data/mock_manifests")
-    m2 = Manifests("m2", "unit-testing", "tests/data/mock_manifests")
+    m1 = Manifests(
+        "m1", "unit-testing-model", "unit-testing", "tests/data/mock_manifests"
+    )
+    m2 = Manifests(
+        "m2", "unit-testing-model", "unit-testing", "tests/data/mock_manifests"
+    )
     assert m1.name != m2.name
 
 
 def test_manifest_without_config():
-    m1 = Manifests("m1", "unit-testing", "tests/data/mock_manifests")
+    m1 = Manifests(
+        "m1", "unit-testing-model", "unit-testing", "tests/data/mock_manifests"
+    )
     with pytest.raises(NotImplementedError):
         _ = m1.config
 

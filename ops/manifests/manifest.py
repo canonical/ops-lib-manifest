@@ -60,6 +60,7 @@ class Manifests:
     def __init__(
         self,
         name: str,
+        model_name: str,
         app_name: str,
         base_path: PathLike,
         manipulations: List[Manipulation] = None,
@@ -67,6 +68,7 @@ class Manifests:
         """Create Manifests object.
 
         @param name:         Uniquely idenitifes these released manifests.
+        @param model_name:     Charm model name
         @param app_name:     Charm application name which deploys this manifest.
         @param base_path:    path to folder containing manifest files for various
                              releases.
@@ -76,6 +78,7 @@ class Manifests:
         """
 
         self.name = name
+        self.model_name = name
         self.app_name = app_name
         self.base_path = Path(base_path)
         if manipulations is None:

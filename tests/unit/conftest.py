@@ -32,6 +32,7 @@ def manifest():
             self.data = {}
             super().__init__(
                 "test-manifest",
+                "unit-testing-model",
                 "unit-testing",
                 "tests/data/mock_manifests",
             )
