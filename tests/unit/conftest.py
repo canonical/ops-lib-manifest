@@ -4,6 +4,8 @@ import unittest.mock as mock
 
 import pytest
 from lightkube import ApiError
+from ops.charm import CharmBase
+from ops.testing import Harness
 
 from ops.manifests import Manifests
 
@@ -26,14 +28,21 @@ def api_error_klass():
 
 
 @pytest.fixture
-def manifest():
+def harness():
+    class UnitTestCharm(CharmBase):
+        pass
+
+    yield Harness(UnitTestCharm)
+
+
+@pytest.fixture
+def manifest(harness):
     class TestManifests(Manifests):
         def __init__(self):
             self.data = {}
             super().__init__(
                 "test-manifest",
-                "unit-testing-model",
-                "unit-testing",
+                harness.model,
                 "tests/data/mock_manifests",
             )
 

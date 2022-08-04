@@ -3,8 +3,8 @@
 """Classes used for mutating or adding to manifests."""
 
 import logging
-from typing import TYPE_CHECKING, Callable, List, Optional
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
@@ -149,7 +149,7 @@ class ManifestLabel(Patch):
         if obj.metadata:
             version = self.manifests.current_release
             labels = {
-                "juju.io/application": self.manifests.app_name,
+                "juju.io/application": self.manifests.model.app.name,
                 "juju.io/manifest": self.manifests.name,
                 "juju.io/manifest-version": f"{self.manifests.name}-{version}",
             }

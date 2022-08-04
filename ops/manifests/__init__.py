@@ -6,8 +6,8 @@ from .manipulations import (
     CreateNamespace,
     ManifestLabel,
     Patch,
-    update_toleration,
     SubtractEq,
+    update_toleration,
 )
 
 __all__ = [

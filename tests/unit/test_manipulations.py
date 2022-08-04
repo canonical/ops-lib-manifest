@@ -10,8 +10,8 @@ from ops.manifests import (
     ConfigRegistry,
     CreateNamespace,
     ManifestLabel,
-    update_toleration,
     SubtractEq,
+    update_toleration,
 )
 
 

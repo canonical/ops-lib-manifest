@@ -15,14 +15,15 @@ from backports.cached_property import cached_property
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
+from ops.model import Model
 
 from .manipulations import (
     Addition,
+    HashableResource,
     ManifestLabel,
     Manipulation,
     Patch,
     Subtraction,
-    HashableResource,
 )
 
 log = logging.getLogger(__file__)
@@ -60,16 +61,14 @@ class Manifests:
     def __init__(
         self,
         name: str,
-        model_name: str,
-        app_name: str,
+        model: Model,
         base_path: PathLike,
         manipulations: List[Manipulation] = None,
     ):
         """Create Manifests object.
 
         @param name:         Uniquely idenitifes these released manifests.
-        @param model_name:     Charm model name
-        @param app_name:     Charm application name which deploys this manifest.
+        @param model:        ops framework Model
         @param base_path:    path to folder containing manifest files for various
                              releases.
         @param manipulations list of manipulation objects which will alter the existing
@@ -78,9 +77,8 @@ class Manifests:
         """
 
         self.name = name
-        self.model_name = model_name
-        self.app_name = app_name
         self.base_path = Path(base_path)
+        self.model = model
         if manipulations is None:
             self.manipulations: List[Manipulation] = [ManifestLabel(self)]
         else:
@@ -89,7 +87,7 @@ class Manifests:
     @cached_property
     def client(self) -> Client:
         """Lazy evaluation of the lightkube client."""
-        return Client(field_manager=f"{self.app_name}-{self.name}")
+        return Client(field_manager=f"{self.model.app.name}-{self.name}")
 
     @property
     def config(self) -> Dict:
@@ -222,7 +220,7 @@ class Manifests:
                 ns_kind.kind,
                 namespace=ns_kind.namespace,
                 labels={
-                    "juju.io/application": self.app_name,
+                    "juju.io/application": self.model.app.name,
                     "juju.io/manifest": self.name,
                 },
             )
