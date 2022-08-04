@@ -10,6 +10,7 @@ from ops.manifests import (
     ConfigRegistry,
     CreateNamespace,
     ManifestLabel,
+    SubtractEq,
     update_toleration,
 )
 
@@ -180,3 +181,25 @@ def test_update_deployment_toleration():
         len(obj.spec.template.spec.tolerations) == 1
     ), "The first toleration should be removed"
     assert obj.spec.template.spec.tolerations[0].key == "something.else/unreachable"
+
+
+def test_subtraction_eq(manifest):
+    rsc1 = from_dict(
+        dict(
+            apiVersion="v1",
+            kind="ServiceAccount",
+            metadata=dict(name="test-manifest-manager-1", namespace="kube-system"),
+        )
+    )
+
+    rsc2 = from_dict(
+        dict(
+            apiVersion="v1",
+            kind="ServiceAccount",
+            metadata=dict(name="test-manifest-manager-2", namespace="kube-system"),
+        )
+    )
+
+    adjustment1 = SubtractEq(manifest, rsc1)
+    assert adjustment1(rsc1)
+    assert not adjustment1(rsc2)

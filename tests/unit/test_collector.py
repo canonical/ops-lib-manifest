@@ -14,7 +14,7 @@ def test_collector_list_versions(manifest):
     collector = Collector(manifest)
     collector.list_versions(event)
     event.set_results.assert_called_once_with(
-        {"test-manifest versions": "v0.3.1\nv0.2"}
+        {"test-manifest-versions": "v0.3.1\nv0.2"}
     )
 
 
@@ -34,7 +34,7 @@ def test_collector_list_resources_all(manifest):
     collector.list_resources(event, None, None)
     event.set_results.assert_called_once_with(
         {
-            "test-manifest missing": "\n".join(
+            "test-manifest-missing": "\n".join(
                 [
                     "Deployment/kube-system/test-manifest-deployment",
                     "Secret/kube-system/test-manifest-secret",
@@ -50,7 +50,7 @@ def test_collector_list_kind_filter(manifest):
     collector = Collector(manifest)
     collector.list_resources(event, None, "deployment")
     event.set_results.assert_called_once_with(
-        {"test-manifest missing": "Deployment/kube-system/test-manifest-deployment"}
+        {"test-manifest-missing": "Deployment/kube-system/test-manifest-deployment"}
     )
 
 
