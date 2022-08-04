@@ -4,10 +4,13 @@ import unittest.mock as mock
 
 import pytest
 from lightkube import ApiError
+from lightkube.codecs import from_dict
 from ops.charm import CharmBase
 from ops.testing import Harness
 
 from ops.manifests import Manifests
+
+from ops.manifests.manipulations import ManifestLabel, SubtractEq
 
 
 @pytest.fixture(autouse=True)
@@ -37,6 +40,14 @@ def harness():
 
 @pytest.fixture
 def manifest(harness):
+    remove_me = from_dict(
+        dict(
+            apiVersion="v1",
+            kind="ConfigMap",
+            metadata=dict(name="test-manifest-config-map", namespace="kube-system"),
+        )
+    )
+
     class TestManifests(Manifests):
         def __init__(self):
             self.data = {}
@@ -44,6 +55,7 @@ def manifest(harness):
                 "test-manifest",
                 harness.model,
                 "tests/data/mock_manifests",
+                [ManifestLabel(self), SubtractEq(self, remove_me)]
             )
 
         @property
