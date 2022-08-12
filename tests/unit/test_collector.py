@@ -85,8 +85,11 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
         type(resource), "delete-me", namespace=None
     )
 
+
 @mock.patch("ops.manifests.collector.Collector._list_resources")
-def test_collector_install_missing_resources(mock_list_resources, manifest, lk_client, caplog):
+def test_collector_install_missing_resources(
+    mock_list_resources, manifest, lk_client, caplog
+):
     resource = codecs.from_dict(
         dict(
             apiVersion="v1",
