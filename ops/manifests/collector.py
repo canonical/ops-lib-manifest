@@ -69,6 +69,21 @@ class Collector:
                 self.manifests[name].delete_resources(*analysis.extra)
         self._list_resources(event, manifests, resources)
 
+    def apply_missing_resources(
+        self, event, manifests: Optional[str], resources: Optional[str]
+    ):
+        """Applies manifest resources that are missing from the cluster
+
+        Uses the list_resource analysis to determine the missing resources
+        then applies those resources.
+        """
+        results = self._list_resources(event, manifests, resources)
+        for name, analysis in results.items():
+            if analysis.missing:
+                event.log(f"Applying {','.join(str(_) for _ in analysis.missing)}")
+                self.manifests[name].apply_resources(*analysis.missing)
+        self._list_resources(event, manifests, resources)
+
     @property
     def unready(self) -> List[str]:
         """Status of unready resources."""
