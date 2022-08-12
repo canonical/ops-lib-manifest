@@ -86,6 +86,35 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
     )
 
 
+@mock.patch("ops.manifests.collector.Collector._list_resources")
+def test_collector_install_missing_resources(
+    mock_list_resources, manifest, lk_client, caplog
+):
+    resource = codecs.from_dict(
+        dict(
+            apiVersion="v1",
+            kind="Namespace",
+            metadata=dict(name="install-me-im-missing"),
+        )
+    )
+    analysis = mock.MagicMock()
+    analysis.missing = {HashableResource(resource)}
+    mock_list_resources.return_value = {"test-manifest": analysis}
+
+    event = mock.MagicMock()
+    collector = Collector(manifest)
+    collector.apply_missing_resources(event, None, None)
+
+    assert mock_list_resources.call_count == 2
+    mock_list_resources.assert_called_with(event, None, None)
+    event.log.assert_called_once_with("Applying Namespace/install-me-im-missing")
+    assert lk_client.apply.call_count == 1
+    assert caplog.messages == [
+        "Applying Namespace/install-me-im-missing",
+        "Applied 1 Resources",
+    ]
+
+
 def test_collector_unready(manifest, lk_client):
     def mock_get_responder(klass, name, namespace=None):
         Condition = namedtuple("Condition", "status,type")
