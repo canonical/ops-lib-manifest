@@ -62,20 +62,20 @@ Key file-heirarchy requirements
 
 ## Sample Usage
 
-Once your charm includes the above manifest file heirachy, your charm will need to define the
+Once your charm includes the above manifest file hierarchy, your charm will need to define the
 mutations the library should make to the manifests. 
 
 ```python
 from ops.manifests import Collector, Manifests, ManifestLabel, ConfigRegistry
 
 class ExampleApp(Manifests):
-    def __init__(self, app_name, charm_config):
+    def __init__(self, charm, charm_config):
         manipulations = [
             ManifestLabel(self),
             ConfigRegistry(self),
             UpdateSecret(self),
         ]
-        super().__init__("example", app_name, "upstream/example", manipulations)
+        super().__init__("example", charm.model, "upstream/example", manipulations)
         self.charm_config = charm_config
 
     @property
@@ -96,12 +96,12 @@ class ExampleCharm(CharmBase):
         super().__init__(*args)
 
         # collection of ManifestImpls
-        self.collector = Collector(ExampleApp(self.charm.config))
+        self.collector = Collector(ExampleApp(self, self.config))
 
         # Register actions callbacks
         self.framework.observe(self.on.list_versions_action, self._list_versions)
         
-        # Register updstate status callbacks
+        # Register update status callbacks
         self.framework.observe(self.on.update_status, self._update_status)
     
     def _list_versions(self, event):
@@ -123,9 +123,9 @@ class ExampleCharm(CharmBase):
 This class provides the following functions:
 1) Integration with lightkube to create/read/update/delete resources into the cluster
 2) Provides a means to select a manifest release
-3) Loads manifest files from a known file heirarchy specific to a release
+3) Loads manifest files from a known file hierarchy specific to a release
 4) Manipulates resource objects of a specific release
-5) Provides comparisons between the installed resources and expected resouces
+5) Provides comparisons between the installed resources and expected resources
 6) Provides user listing of available releases
 
 ### Creating a Manifest Impl
@@ -186,6 +186,7 @@ the manifests within a single charm.  It provides methods for responding to
 * action list-versions
 * action scrub-resources
 * action list-resources
+* action apply-missing-resources
 * querying the collective versions (short and long types)
 * listing which resources have a non-active status
 
@@ -195,8 +196,8 @@ and add an instance of it to a `Collector`.
 
 ```python
 class AlternateApp(Manifests):
-    def __init__(self, app_name, charm_config):
-        super().__init__("alternate", app_name, "upstream/example")
+    def __init__(self, charm, charm_config):
+        super().__init__("alternate", charm.model, "upstream/example")
         self.charm_config = charm_config
 
 
@@ -218,8 +219,8 @@ class ExampleCharm(CharmBase):
         ...
         # collection of ManifestImpls
         self.collector = Collector(
-            ExampleApp(self.app.name, self.charm.config), 
-            AlternateApp(self.app.name, self.charm.config),
+            ExampleApp(self, self.config), 
+            AlternateApp(self, self.config),
         )
 ```
 
@@ -256,6 +257,14 @@ before the rest of the `Patch` manipulations are applied.
 * `CreateNamespace` - Creates a namespace resource using either the manifest's default namespace or 
                       an argument passed in to the constructor of this class. 
 
-### Custom Patchers/Additions
+### Subtracting a manifest resource
+Some manifest resources are not needed and must be removed. The `Subtraction` manipulations are added
+before the rest of the `Patch` manipulations are applied.
+
+#### Built in Subtractors
+* `SubtractEq` - Subtracts a manifest resource equal to the resource passed in as an argument. Resources are considered 
+                 equal if they have the same kind, name, and namespace.
+
+### Custom Manipulations
 Of course the built-ins will not be enough, so your charm may extend its own manipulations by defining
 new objects which inherit from either `Patch` or `Addition`.
