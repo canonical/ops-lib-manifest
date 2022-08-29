@@ -1,7 +1,7 @@
 from ops.manifests import ManifestLabel, Manifests, PatchEq, SubtractEq, CreateNamespace
 
 
-def test_add_resource(harness):
+def test_regex_matching(harness):
     class TestManifests(Manifests):
         def __init__(self):
             self.data = {}
