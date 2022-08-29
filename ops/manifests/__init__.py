@@ -7,6 +7,7 @@ from .manipulations import (
     CreateNamespace,
     ManifestLabel,
     Patch,
+    PatchEq,
     SubtractEq,
     update_tolerations,
 )
@@ -20,7 +21,8 @@ __all__ = [
     "ManifestLabel",
     "Manifests",
     "Patch",
-    "update_tolerations",
+    "PatchEq",
+    "update_toleration",
     "SubtractEq",
     "ManifestClientError",
 ]

@@ -101,7 +101,7 @@ def test_config_registry_pod_with_init_container():
 
 
 def test_create_namespace(manifest):
-    adjustment = CreateNamespace(manifest, "default")
+    adjustment = CreateNamespace("default")
     obj = adjustment()
     assert obj and obj.metadata, "Should have metadata"
     assert type(obj).__name__ == "Namespace"
@@ -206,6 +206,6 @@ def test_subtraction_eq(manifest):
         )
     )
 
-    adjustment1 = SubtractEq(manifest, rsc1)
+    adjustment1 = SubtractEq(rsc1)
     assert adjustment1(rsc1)
     assert not adjustment1(rsc2)

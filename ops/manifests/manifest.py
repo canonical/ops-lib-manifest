@@ -87,10 +87,20 @@ class Manifests:
         self.name = name
         self.base_path = Path(base_path)
         self.model = model
+        self._additions: List[Addition] = []
+        self._subtractions: List[Subtraction] = []
+        self._patches: List[Patch] = []
+
         if manipulations is None:
-            self.manipulations: List[Manipulation] = [ManifestLabel(self)]
+            self._patches.append(ManifestLabel(self))
         else:
-            self.manipulations = manipulations
+            for operation in manipulations:
+                if isinstance(operation, Patch):
+                    self._patches.append(operation)
+                elif isinstance(operation, Addition):
+                    self._additions.append(operation)
+                elif isinstance(operation, Subtraction):
+                    self._subtractions.append(operation)
 
     @cached_property
     def client(self) -> Client:
@@ -159,14 +169,7 @@ class Manifests:
 
         # Generate Addition resources
         additions: List[AnyResource] = list(
-            filter(
-                None,
-                (
-                    manipulate()
-                    for manipulate in self.manipulations
-                    if isinstance(manipulate, Addition)
-                ),
-            )
+            filter(None, (adder() for adder in self._additions))
         )
 
         # Generate Static resources
@@ -179,16 +182,14 @@ class Manifests:
         statics = [rsc for yml in ymls for rsc in self._resource_from_yaml(yml)]
 
         # Apply subtractions
-        for manipulate in self.manipulations:
-            if isinstance(manipulate, Subtraction):
-                statics = [rsc for rsc in statics if not manipulate(rsc)]
+        for subtractors in self._subtractions:
+            statics = [rsc for rsc in statics if not subtractors(rsc)]
 
         # Apply manipulations
         all_resources = additions + statics
         for rsc in all_resources:
-            for manipulate in self.manipulations:
-                if isinstance(manipulate, Patch):
-                    manipulate(rsc)
+            for patcher in self._patches:
+                patcher(rsc)
 
         return OrderedDict(
             (HashableResource(obj), None) for obj in all_resources

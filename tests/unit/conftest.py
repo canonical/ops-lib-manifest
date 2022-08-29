@@ -74,7 +74,7 @@ def manifest(harness):
                 "tests/data/mock_manifests",
                 [
                     ManifestLabel(self),
-                    SubtractEq(self, remove_me),
+                    SubtractEq(remove_me),
                     ConfigRegistry(self),
                 ],
             )
