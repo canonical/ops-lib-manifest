@@ -12,6 +12,7 @@ setup(
     long_description_content_type='text/markdown',
     classifiers=[
         "Programming Language :: Python",
+        "Programming Language :: Python :: 3.6",
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
@@ -27,6 +28,7 @@ setup(
     zip_safe=True,
     install_requires=[
         "backports.cached-property",
+        "dataclasses; python_version<'3.7'",
         "ops",
         "lightkube",
     ],

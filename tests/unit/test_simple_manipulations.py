@@ -1,4 +1,4 @@
-from ops.manifests import ManifestLabel, Manifests, PatchEq, SubtractEq, CreateNamespace
+from ops.manifests import CreateNamespace, ManifestLabel, Manifests, PatchEq, SubtractEq
 
 
 def test_regex_matching(harness):
