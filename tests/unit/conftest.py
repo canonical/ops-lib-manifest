@@ -54,7 +54,7 @@ def manifest(harness):
                 "test-manifest",
                 harness.model,
                 "tests/data/mock_manifests",
-                [ManifestLabel(self), SubtractEq(self, remove_me)],
+                [ManifestLabel(self), SubtractEq(remove_me)],
             )
 
         @property

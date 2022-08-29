@@ -3,8 +3,9 @@
 """Classes used for mutating or adding to manifests."""
 
 import logging
+import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional, Union
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
@@ -86,22 +87,7 @@ class HashableResource:
         return isinstance(other, HashableResource) and other.__uniq() == self.__uniq()
 
 
-class Manipulation:
-    """Class used to support charm deviations from the manifests."""
-
-    def __init__(self, manifests: "Manifests") -> None:
-        self.manifests = manifests
-
-
-class Patch(Manipulation):
-    """Class used to define how to patch an existing object in the manifests."""
-
-    def __call__(self, obj: AnyResource) -> None:
-        """Method called to optionally update the object before application."""
-        ...
-
-
-class Addition(Manipulation):
+class Addition:
     """Class used to define objects to add to the original manifests."""
 
     def __call__(self) -> Optional[AnyResource]:
@@ -109,7 +95,15 @@ class Addition(Manipulation):
         ...
 
 
-class Subtraction(Manipulation):
+class Patch:
+    """Class used to define how to patch an existing object in the manifests."""
+
+    def __call__(self, obj: AnyResource) -> None:
+        """Method called to optionally update the object before application."""
+        ...
+
+
+class Subtraction:
     """Class used to define objects to subtract from the original manifests."""
 
     def __call__(self, obj: AnyResource) -> bool:
@@ -117,11 +111,49 @@ class Subtraction(Manipulation):
         ...
 
 
+Manipulation = Union[Addition, Subtraction, Patch]
+
+
+def comparitor(left: Union[str, AnyResource], right: AnyResource) -> bool:
+    """Returns true if obj == rsc based on kind, name, and namespace"""
+    if isinstance(left, str):
+        m = re.match(left, str(HashableResource(right)))
+        return bool(m)
+
+    return HashableResource(left) == HashableResource(right)
+
+
+@dataclass
+class SubtractEq(Subtraction):
+    """Remove if resource matches given comparitor."""
+
+    to_compare: Union[str, AnyResource]
+
+    def __call__(self, obj: AnyResource) -> bool:
+        return comparitor(self.to_compare, obj)
+
+
+@dataclass
+class PatchEq(Patch):
+    """Patch if resource matches given comparitor."""
+
+    to_compare: Union[str, AnyResource]
+    to_patch: Patch
+
+    def is_match(self, obj: AnyResource) -> bool:
+        """Returns true if obj == rsc based on kind, name, and namespace"""
+        return comparitor(self.to_compare, obj)
+
+    def __call__(self, obj: AnyResource) -> None:
+        if not self.is_match(obj):
+            return
+        self.to_patch(obj)
+
+
 class CreateNamespace(Addition):
     """Class used to create additional namespace before apply manifests."""
 
-    def __init__(self, manifests: "Manifests", namespace: str) -> None:
-        super().__init__(manifests)
+    def __init__(self, namespace: str) -> None:
         self.namespace = namespace
 
     def __call__(self) -> Optional[AnyResource]:
@@ -144,7 +176,10 @@ class ManifestLabel(Patch):
     https://helm.sh/docs/chart_best_practices/labels/
     """
 
-    def __call__(self, obj: AnyResource):
+    def __init__(self, manifests: "Manifests") -> None:
+        self.manifests = manifests
+
+    def __call__(self, obj: AnyResource) -> None:
         """Adds manifest.name label to obj."""
         if obj.metadata:
             version = self.manifests.current_release
@@ -160,7 +195,10 @@ class ManifestLabel(Patch):
 class ConfigRegistry(Patch):
     """Applies image registry to the manifest."""
 
-    def __call__(self, obj):
+    def __init__(self, manifests: "Manifests") -> None:
+        self.manifests = manifests
+
+    def __call__(self, obj: AnyResource) -> None:
         """Use the image-registry config and updates container images in obj."""
         registry = self.manifests.config.get("image-registry")
         if not registry:
@@ -202,20 +240,3 @@ def update_toleration(obj: AnyResource, adjuster: TolerationAdjuster):
             log.info(f"Replacing toleration {toleration} with {adjustment}")
             new_tolerations += adjustment
     spec.tolerations = new_tolerations
-
-
-class SubtractEq(Subtraction):
-    """Ensure every manifest item is labeled with the manifest name.
-
-    Similar to helm charts, add to each metadata some information
-    regarding what applied this resource up
-    https://helm.sh/docs/chart_best_practices/labels/
-    """
-
-    def __init__(self, manifests: "Manifests", to_compare: AnyResource) -> None:
-        super().__init__(manifests)
-        self.to_compare = to_compare
-
-    def __call__(self, obj: AnyResource) -> bool:
-        """Returns true if obj == rsc based on kind, name, and namespace"""
-        return HashableResource(self.to_compare) == HashableResource(obj)
