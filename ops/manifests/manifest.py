@@ -32,6 +32,7 @@ PathLike = Union[str, os.PathLike]
 Version = List[Union[str, int]]
 
 _VERSION_SPLIT = re.compile(r"(\d+)")
+FILE_TYPES = ["yaml", "yml"]
 
 
 def _by_version(version: str) -> Version:
@@ -50,11 +51,11 @@ class Manifests:
     ├── version                  - a file containing the default version
     ├── manifests                - a folder containing all the releases
     │   ├── v1.1.10              - a folder matching a configurable version
-    │   │   ├── manifest-1.yaml  - any file with a `.yaml` file type
+    │   │   ├── manifest-1.yaml  - any file with a `.yaml|.yml` file type
     │   │   └── manifest-2.yaml
     │   ├── v1.1.11
-    │   │   ├── manifest-1.yaml
-    │   │   └── manifest-2.yaml
+    │   │   ├── manifest-1.yml
+    │   │   └── manifest-2.yml
     │   │   └── manifest-3.yaml
     """
 
@@ -108,7 +109,8 @@ class Manifests:
         return sorted(
             set(
                 manifests.parent.name
-                for manifests in self.manifest_path.glob("*/*.yaml")
+                for ext in FILE_TYPES
+                for manifests in self.manifest_path.glob(f"*/*.{ext}")
             ),
             key=_by_version,
             reverse=True,
@@ -154,7 +156,12 @@ class Manifests:
         )
 
         # Generate Static resources
-        ymls = Path(self.manifest_path / self.current_release).glob("*.yaml")
+        release_path = Path(self.manifest_path / self.current_release)
+        ymls = [
+            manifests
+            for ext in FILE_TYPES
+            for manifests in release_path.glob(f"*.{ext}")
+        ]
         statics = [rsc for yml in ymls for rsc in self._safe_load(yml)]
 
         # Apply subtractions
