@@ -166,11 +166,18 @@ class ConfigRegistry(Patch):
         if not registry:
             return
         if obj.kind in ["Pod"]:
-            containers = obj.spec.containers
+            spec = obj.spec
         elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet"]:
-            containers = obj.spec.template.spec.containers
+            spec = obj.spec.template.spec
         else:
-            containers = []
+            spec = None
+
+        containers = []
+        if spec:
+            if spec.containers:
+                containers += spec.containers
+            if spec.initContainers:
+                containers += spec.initContainers
 
         for container in containers:
             full_image = container.image

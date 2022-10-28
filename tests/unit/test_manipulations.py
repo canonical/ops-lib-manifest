@@ -82,6 +82,21 @@ def test_config_registry_of_daemonset():
     )
 
 
+def test_config_registry_pod_with_init_container():
+    manifest = mock.MagicMock()
+    rocks = "rocks.canonical.com:443/cdk"
+    manifest.config = {"image-registry": rocks}
+    c1 = dict(name="cool-pod", image="mcr.microsoft.com/awesome/image:1.0")
+    c2 = dict(name="other-pod", image="gcr.io/other/image:2.0")
+    obj = from_dict(dict(apiVersion="v1", kind="Pod", spec=dict(containers=[c1], initContainers=[c2])))
+
+    adjustment = ConfigRegistry(manifest)
+    adjustment(obj)
+
+    assert obj.spec.containers[0].image == f"{rocks}/awesome/image:1.0"
+    assert obj.spec.initContainers[0].image == f"{rocks}/other/image:2.0"
+
+
 def test_create_namespace(manifest):
     adjustment = CreateNamespace(manifest, "default")
     obj = adjustment()
