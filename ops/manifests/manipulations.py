@@ -5,7 +5,7 @@
 import logging
 import re
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Iterable, List, Optional, Union
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
@@ -38,6 +38,20 @@ class AnyCondition:
     lastTransitionTime: Optional[Time] = None
     message: Optional[str] = None
     reason: Optional[str] = None
+
+
+def _unique(collection, key):
+    """Yields a unique iterable of items from collection.
+
+    uniqueness is determined from the result of key(item).
+    """
+    seen = set()
+
+    for item in collection:
+        value = key(item)
+        if value not in seen:
+            seen.add(value)
+            yield item
 
 
 class HashableResource:
@@ -204,11 +218,18 @@ class ConfigRegistry(Patch):
         if not registry:
             return
         if obj.kind in ["Pod"]:
-            containers = obj.spec.containers
+            spec = obj.spec
         elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet"]:
-            containers = obj.spec.template.spec.containers
+            spec = obj.spec.template.spec
         else:
-            containers = []
+            spec = None
+
+        containers = []
+        if spec:
+            if spec.containers:
+                containers += spec.containers
+            if spec.initContainers:
+                containers += spec.initContainers
 
         for container in containers:
             full_image = container.image
@@ -219,24 +240,24 @@ class ConfigRegistry(Patch):
                 log.info(f"Replacing Image: {full_image} with {new_full_image}")
 
 
-TolerationAdjuster = Callable[[Toleration], List[Toleration]]
+TolerationAdjuster = Callable[[List[Toleration]], Iterable[Toleration]]
 
 
-def update_toleration(obj: AnyResource, adjuster: TolerationAdjuster):
+def update_tolerations(obj: AnyResource, adjuster: TolerationAdjuster):
     """Uses the adjuster service and updates any object tolerations."""
     if obj.kind in ["Pod"]:
         spec = obj.spec
     elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet"]:
         spec = obj.spec.template.spec
     else:
-        return
+        spec = None
 
-    new_tolerations = []
-    for toleration in spec.tolerations:
-        adjustment = adjuster(toleration)
-        if not adjustment:
-            log.info(f"Removing toleration {toleration}")
-        else:
-            log.info(f"Replacing toleration {toleration} with {adjustment}")
-            new_tolerations += adjustment
-    spec.tolerations = new_tolerations
+    if spec:
+        updated = list(
+            _unique(
+                adjuster(spec.tolerations), key=lambda t: tuple(t.to_dict().values())
+            )
+        )
+        log.info(f"Applying tolerations {updated} to {HashableResource(obj)}")
+        spec.tolerations = updated
+    return obj

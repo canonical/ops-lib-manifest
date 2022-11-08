@@ -4,14 +4,13 @@
 import unittest.mock as mock
 
 from lightkube.codecs import from_dict
-from lightkube.models.core_v1 import Toleration
 
 from ops.manifests import (
     ConfigRegistry,
     CreateNamespace,
     ManifestLabel,
     SubtractEq,
-    update_toleration,
+    update_tolerations,
 )
 
 
@@ -82,6 +81,25 @@ def test_config_registry_of_daemonset():
     )
 
 
+def test_config_registry_pod_with_init_container():
+    manifest = mock.MagicMock()
+    rocks = "rocks.canonical.com:443/cdk"
+    manifest.config = {"image-registry": rocks}
+    c1 = dict(name="cool-pod", image="mcr.microsoft.com/awesome/image:1.0")
+    c2 = dict(name="other-pod", image="gcr.io/other/image:2.0")
+    obj = from_dict(
+        dict(
+            apiVersion="v1", kind="Pod", spec=dict(containers=[c1], initContainers=[c2])
+        )
+    )
+
+    adjustment = ConfigRegistry(manifest)
+    adjustment(obj)
+
+    assert obj.spec.containers[0].image == f"{rocks}/awesome/image:1.0"
+    assert obj.spec.initContainers[0].image == f"{rocks}/other/image:2.0"
+
+
 def test_create_namespace(manifest):
     adjustment = CreateNamespace("default")
     obj = adjustment()
@@ -117,18 +135,12 @@ def test_manifest_label(manifest):
 
 
 def test_update_pod_toleration():
-    adjuster = mock.MagicMock(
-        side_effect=[
-            None,
-            [
-                Toleration(
-                    key="something.else/unreachable",
-                    operator="Exists",
-                    effect="NoSchedule",
-                )
-            ],
-        ]
-    )
+    def adjuster(tolerations):
+        tolerations = tolerations[1:]  # remove first toleration
+        tolerations[0].key = "something.else/unreachable"  # patch second toleration
+        tolerations.append(tolerations[0])  # duplicate the second just to test dedupe
+        return tolerations
+
     t1 = dict(
         key="node-role.kubernetes.io/not-ready", operator="Exists", effect="NoSchedule"
     )
@@ -143,25 +155,19 @@ def test_update_pod_toleration():
         )
     )
 
-    update_toleration(obj, adjuster)
+    update_tolerations(obj, adjuster)
 
     assert len(obj.spec.tolerations) == 1, "The first toleration should be removed"
     assert obj.spec.tolerations[0].key == "something.else/unreachable"
 
 
 def test_update_deployment_toleration():
-    adjuster = mock.MagicMock(
-        side_effect=[
-            None,
-            [
-                Toleration(
-                    key="something.else/unreachable",
-                    operator="Exists",
-                    effect="NoSchedule",
-                )
-            ],
-        ]
-    )
+    def adjuster(tolerations):
+        tolerations = tolerations[1:]  # remove first
+        tolerations[0].key = "something.else/unreachable"  # adjust second
+        tolerations.append(tolerations[0])  # duplicate the second to test de-dupe
+        return tolerations
+
     t1 = dict(
         key="node-role.kubernetes.io/not-ready", operator="Exists", effect="NoSchedule"
     )
@@ -175,7 +181,7 @@ def test_update_deployment_toleration():
         selector=dict(matchLabels=dict(app="myCoolApp")),
     )
     obj = from_dict(dict(apiVersion="apps/v1", kind="DaemonSet", spec=spec))
-    update_toleration(obj, adjuster)
+    update_tolerations(obj, adjuster)
 
     assert (
         len(obj.spec.template.spec.tolerations) == 1

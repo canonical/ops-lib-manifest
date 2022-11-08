@@ -8,7 +8,7 @@ from .manipulations import (
     Patch,
     PatchEq,
     SubtractEq,
-    update_toleration,
+    update_tolerations,
 )
 
 __all__ = [
@@ -21,6 +21,6 @@ __all__ = [
     "Manifests",
     "Patch",
     "PatchEq",
-    "update_toleration",
+    "update_tolerations",
     "SubtractEq",
 ]
