@@ -7,7 +7,7 @@ from .manipulations import (
     ManifestLabel,
     Patch,
     SubtractEq,
-    update_toleration,
+    update_tolerations,
 )
 
 __all__ = [
@@ -19,6 +19,6 @@ __all__ = [
     "ManifestLabel",
     "Manifests",
     "Patch",
-    "update_toleration",
+    "update_tolerations",
     "SubtractEq",
 ]
