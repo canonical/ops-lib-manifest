@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Callable, Iterable, List, Optional
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
+from lightkube.generic_resource import GenericGlobalResource, GenericNamespacedResource
 from lightkube.models.core_v1 import Toleration
 from lightkube.models.meta_v1 import Time
 
@@ -167,7 +168,13 @@ class ManifestLabel(Patch):
                 "juju.io/manifest": self.manifests.name,
                 "juju.io/manifest-version": f"{self.manifests.name}-{version}",
             }
-            obj.metadata.labels = obj.metadata.labels or {}  # ensure object has labels
+            if isinstance(obj, (GenericGlobalResource, GenericNamespacedResource)):
+                # Custom resources in lightkube are built differently
+                # from standard model resources
+                obj["metadata"]["labels"] = obj.metadata.labels or {}
+            else:
+                # ensure object has labels
+                obj.metadata.labels = obj.metadata.labels or {}
             obj.metadata.labels.update(**labels)
 
 
