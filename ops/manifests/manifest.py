@@ -15,7 +15,10 @@ from backports.cached_property import cached_property
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
-from lightkube.generic_resource import create_resources_from_crd, load_in_cluster_generic_resources
+from lightkube.generic_resource import (
+    create_resources_from_crd,
+    load_in_cluster_generic_resources,
+)
 from ops.model import Model
 
 from .manipulations import (
