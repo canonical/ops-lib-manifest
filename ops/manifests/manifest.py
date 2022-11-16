@@ -163,11 +163,11 @@ class Manifests:
 
         # Generate Static resources
         release_path = Path(self.manifest_path / self.current_release)
-        ymls = [
+        ymls = sorted(
             manifests
             for ext in FILE_TYPES
             for manifests in release_path.glob(f"*.{ext}")
-        ]
+        )
         statics = [rsc for yml in ymls for rsc in self._safe_load(yml)]
 
         # Apply subtractions
