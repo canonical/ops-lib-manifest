@@ -6,7 +6,7 @@ from collections import namedtuple
 
 import pytest
 
-from ops.manifests import HashableResource, Manifests
+from ops.manifests import HashableResource, ManifestClientError, Manifests
 
 
 @pytest.mark.parametrize("namespace", [None, "default"])
@@ -140,8 +140,9 @@ def test_apply_manifests(manifest, lk_client, caplog):
 
 def test_apply_api_error(manifest, lk_client, api_error_klass, caplog):
     lk_client.apply.side_effect = [mock.MagicMock(), api_error_klass]
-    with pytest.raises(api_error_klass):
+    with pytest.raises(ManifestClientError) as mce:
         manifest.apply_manifests()
+    assert isinstance(mce.value.__cause__, api_error_klass)
     assert lk_client.apply.call_count == 2
     assert caplog.messages == [
         "Applying test-manifest version: v0.2",
@@ -153,8 +154,9 @@ def test_apply_api_error(manifest, lk_client, api_error_klass, caplog):
 
 def test_apply_http_error(manifest, lk_client, http_gateway_error, caplog):
     lk_client.apply.side_effect = [mock.MagicMock(), http_gateway_error]
-    with pytest.raises(type(http_gateway_error)):
+    with pytest.raises(ManifestClientError) as mce:
         manifest.apply_manifests()
+    assert mce.value.__cause__ is http_gateway_error
     assert lk_client.apply.call_count == 2
     assert caplog.messages == [
         "Applying test-manifest version: v0.2",
@@ -178,16 +180,16 @@ def test_installed_resources(manifest, lk_client):
 
 
 def test_installed_resources_api_error(manifest, lk_client, api_error_klass):
-    with mock.patch.object(lk_client, "get") as mock_get:
-        mock_get.side_effect = api_error_klass
+    with mock.patch.object(lk_client, "get", side_effect=api_error_klass) as mock_get:
         rscs = manifest.installed_resources()
     assert mock_get.call_count == 3
     assert len(rscs) == 0, "No resources expected to be installed."
 
 
 def test_installed_resources_http_error(manifest, lk_client, http_gateway_error):
-    with mock.patch.object(lk_client, "get") as mock_get:
-        mock_get.side_effect = http_gateway_error
+    with mock.patch.object(
+        lk_client, "get", side_effect=http_gateway_error
+    ) as mock_get:
         rscs = manifest.installed_resources()
     assert mock_get.call_count == 3
     assert len(rscs) == 0, "No resources expected to be installed."
@@ -220,7 +222,7 @@ def test_delete_one_resource(manifest, lk_client, caplog):
     mock_delete.assert_called_once_with(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
-    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret"
+    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret..."
 
 
 def test_delete_current_resources(manifest, lk_client, caplog):
@@ -237,19 +239,14 @@ def test_delete_current_resources(manifest, lk_client, caplog):
 
 
 @pytest.mark.parametrize(
-    "status, log_format",
+    "status",
     [
-        ("deleting an item that is not found", "Ignoring not found error: {0}"),
-        (
-            "(unauthorized) Sorry Dave, I cannot do that",
-            "Unauthorized error ignored: {0}",
-        ),
+        "deleting an item that is not found",
+        "(unauthorized) Sorry Dave, I cannot do that",
     ],
     ids=["Not found ignored", "Unauthorized ignored"],
 )
-def test_delete_resource_errors(
-    manifest, api_error_klass, lk_client, caplog, status, log_format
-):
+def test_delete_resource_errors(manifest, api_error_klass, lk_client, caplog, status):
     rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     api_error_klass.status.message = status
@@ -263,24 +260,21 @@ def test_delete_resource_errors(
     mock_delete.assert_called_once_with(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
-    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret"
-    assert caplog.messages[1] == log_format.format(status)
+    obj = "Secret/kube-system/test-manifest-secret"
+    assert caplog.messages[0] == f"Deleting {obj}..."
+    assert caplog.messages[1] == f"Ignored failed delete of resource: {obj}"
+    assert caplog.messages[2] == status
 
 
 @pytest.mark.parametrize(
-    "status, log_format",
+    "status",
     [
-        (
-            "maybe the dingo ate your cloud-secret",
-            "ApiError encountered while attempting to delete resource: {0}",
-        ),
-        (None, "ApiError encountered while attempting to delete resource."),
+        "maybe the dingo ate your cloud-secret",
+        None,
     ],
     ids=["Unignorable status", "No status message"],
 )
-def test_delete_resource_api_error(
-    manifest, api_error_klass, caplog, status, log_format
-):
+def test_delete_resource_api_error(manifest, api_error_klass, caplog, status):
     rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     api_error_klass.status.message = status
@@ -289,15 +283,16 @@ def test_delete_resource_api_error(
         manifest, "client", new_callable=mock.PropertyMock
     ) as mock_client:
         mock_client.delete.side_effect = api_error_klass
-        with pytest.raises(api_error_klass):
+        with pytest.raises(ManifestClientError):
             manifest.delete_resource(
                 element, ignore_unauthorized=True, ignore_not_found=True
             )
     mock_client.delete.assert_called_once_with(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
-    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret"
-    assert caplog.messages[1] == log_format.format(status)
+    obj = "Secret/kube-system/test-manifest-secret"
+    assert caplog.messages[0] == f"Deleting {obj}..."
+    assert caplog.messages[1] == f"Failed to delete resource: {obj}"
 
 
 def test_delete_resource_http_error(manifest, http_gateway_error, caplog):
@@ -308,15 +303,13 @@ def test_delete_resource_http_error(manifest, http_gateway_error, caplog):
         manifest, "client", new_callable=mock.PropertyMock
     ) as mock_client:
         mock_client.delete.side_effect = http_gateway_error
-        with pytest.raises(type(http_gateway_error)):
+        with pytest.raises(ManifestClientError):
             manifest.delete_resource(
                 element, ignore_unauthorized=True, ignore_not_found=True
             )
     mock_client.delete.assert_called_once_with(
         type(element.resource), "test-manifest-secret", namespace="kube-system"
     )
-    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret"
-    assert (
-        caplog.messages[1]
-        == "HTTPError encountered while attempting to delete resource."
-    )
+    obj = "Secret/kube-system/test-manifest-secret"
+    assert caplog.messages[0] == f"Deleting {obj}..."
+    assert caplog.messages[1] == f"Failed to delete resource: {obj}"

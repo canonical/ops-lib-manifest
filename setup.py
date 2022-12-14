@@ -16,6 +16,7 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
     license="MIT license",
     include_package_data=True,
@@ -23,7 +24,7 @@ setup(
     name="ops.manifest",
     packages=find_namespace_packages(include=['ops.*']),
     url="https://github.com/canonical/ops-lib-manifest",
-    version="0.1.0",
+    version="1.0.0",
     zip_safe=True,
     install_requires=[
         "backports.cached-property",
