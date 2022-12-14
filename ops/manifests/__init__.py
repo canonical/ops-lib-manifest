@@ -1,4 +1,5 @@
 from .collector import Collector
+from .exceptions import ManifestClientError
 from .manifest import HashableResource, Manifests
 from .manipulations import (
     Addition,
@@ -21,4 +22,5 @@ __all__ = [
     "Patch",
     "update_tolerations",
     "SubtractEq",
+    "ManifestClientError",
 ]
