@@ -5,7 +5,6 @@ import unittest.mock as mock
 from collections import namedtuple
 
 import pytest
-from lightkube.core.exceptions import ApiError
 
 from ops.manifests import HashableResource, Manifests
 
