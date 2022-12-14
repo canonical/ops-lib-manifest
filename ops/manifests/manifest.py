@@ -10,6 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Dict, FrozenSet, KeysView, List, Optional, Union
 
+import httpx
 import yaml
 from backports.cached_property import cached_property
 from lightkube import Client, codecs
@@ -208,7 +209,8 @@ class Manifests:
                     obj.name,
                     namespace=obj.namespace,
                 )
-            except ApiError:
+            except (ApiError, httpx.HTTPStatusError):
+                log.exception(f"Didn't find expected resource installed ({obj})")
                 continue
             result[HashableResource(next_rsc)] = None
         return frozenset(result.keys())
@@ -254,6 +256,11 @@ class Manifests:
             except ApiError:
                 log.exception(f"Failed Applying {rsc}")
                 raise
+            except httpx.HTTPStatusError:
+                # lightkube throws this when the error result isn't
+                # Content-Type == application/json
+                log.exception(f"Failed Applying {rsc}")
+                raise
         log.info(f"Applied {len(resources)} Resources")
 
     def delete_resources(
@@ -288,6 +295,11 @@ class Manifests:
                         "ApiError encountered while attempting to delete resource."
                     )
                     raise
+            except httpx.HTTPStatusError:
+                log.exception(
+                    "HTTPError encountered while attempting to delete resource."
+                )
+                raise
 
     apply_resource = apply_resources
     delete_resource = delete_resources
