@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 import unittest.mock as mock
 
+import httpx
 import pytest
 from lightkube import ApiError
 from lightkube.codecs import from_dict
@@ -34,6 +35,11 @@ def api_error_klass():
             pass
 
     yield TestApiError
+
+
+@pytest.fixture()
+def http_gateway_error():
+    return httpx.HTTPStatusError("502 Bad Gateway", request={}, response={})
 
 
 @pytest.fixture

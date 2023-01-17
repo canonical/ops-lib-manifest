@@ -12,6 +12,7 @@ from typing import Dict, FrozenSet, KeysView, List, Optional, Union
 
 import yaml
 from backports.cached_property import cached_property
+from httpx import HTTPStatusError
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
@@ -21,6 +22,7 @@ from lightkube.generic_resource import (
 )
 from ops.model import Model
 
+from .exceptions import ManifestClientError
 from .manipulations import (
     Addition,
     HashableResource,
@@ -220,7 +222,8 @@ class Manifests:
                     obj.name,
                     namespace=obj.namespace,
                 )
-            except ApiError:
+            except (ApiError, HTTPStatusError):
+                log.exception(f"Didn't find expected resource installed ({obj})")
                 continue
             result[HashableResource(next_rsc)] = None
         return frozenset(result.keys())
@@ -261,11 +264,12 @@ class Manifests:
         """
         for rsc in resources:
             log.info(f"Applying {rsc}")
+            msg = f"Failed Applying {rsc}"
             try:
                 self.client.apply(rsc.resource, force=True)
-            except ApiError:
-                log.exception(f"Failed Applying {rsc}")
-                raise
+            except (ApiError, HTTPStatusError) as ex:
+                log.exception(msg)
+                raise ManifestClientError(msg, ex) from ex
         log.info(f"Applied {len(resources)} Resources")
 
     def delete_resources(
@@ -277,29 +281,23 @@ class Manifests:
     ):
         """Delete specific resources."""
         for obj in resources:
+            log.info(f"Deleting {obj}...")
             try:
                 namespace = obj.namespace or namespace
-                log.info(f"Deleting {obj}")
                 self.client.delete(type(obj.resource), obj.name, namespace=namespace)
-            except ApiError as err:
-                if err.status.message is not None:
-                    err_lower = err.status.message.lower()
-                    if "not found" in err_lower and ignore_not_found:
-                        log.warning(f"Ignoring not found error: {err.status.message}")
-                    elif "(unauthorized)" in err_lower and ignore_unauthorized:
-                        # Ignore error from https://bugs.launchpad.net/juju/+bug/1941655
-                        log.warning(f"Unauthorized error ignored: {err.status.message}")
-                    else:
-                        log.exception(
-                            "ApiError encountered while attempting to delete resource: "
-                            + err.status.message
-                        )
-                        raise
+            except (ApiError, HTTPStatusError) as ex:
+                msg = str(ex)
+                if hasattr(ex, "status") and ex.status.message is not None:
+                    msg = ex.status.message
+                not_found = ignore_not_found and "not found" in msg.lower()
+                unauthed = ignore_unauthorized and "(unauthorized)" in msg.lower()
+                if not_found or unauthed:
+                    log.warning(f"Ignored failed delete of resource: {obj}")
+                    log.warning(msg)
                 else:
-                    log.exception(
-                        "ApiError encountered while attempting to delete resource."
-                    )
-                    raise
+                    log_msg = f"Failed to delete resource: {obj}"
+                    log.exception(f"{log_msg}")
+                    raise ManifestClientError(log_msg) from ex
 
     apply_resource = apply_resources
     delete_resource = delete_resources
