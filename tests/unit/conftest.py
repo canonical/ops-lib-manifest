@@ -15,8 +15,15 @@ from ops.manifests.manipulations import ManifestLabel, SubtractEq
 
 @pytest.fixture(autouse=True)
 def lk_client():
-    with mock.patch("ops.manifests.manifest.Client", autospec=True) as mock_lightkube:
-        yield mock_lightkube.return_value
+    with mock.patch(
+        "ops.manifests.manifest.load_in_cluster_generic_resources"
+    ) as mock_load:
+        with mock.patch(
+            "ops.manifests.manifest.Client", autospec=True
+        ) as mock_lightkube:
+            yield mock_lightkube.return_value
+        if mock_load.called:
+            mock_load.assert_called_with(mock_lightkube.return_value)
 
 
 @pytest.fixture()

@@ -16,6 +16,10 @@ from httpx import HTTPStatusError
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
+from lightkube.generic_resource import (
+    create_resources_from_crd,
+    load_in_cluster_generic_resources,
+)
 from ops.model import Model
 
 from .exceptions import ManifestClientError
@@ -90,7 +94,9 @@ class Manifests:
     @cached_property
     def client(self) -> Client:
         """Lazy evaluation of the lightkube client."""
-        return Client(field_manager=f"{self.model.app.name}-{self.name}")
+        client = Client(field_manager=f"{self.model.app.name}-{self.name}")
+        load_in_cluster_generic_resources(client)
+        return client
 
     @property
     def config(self) -> Dict:
@@ -159,11 +165,11 @@ class Manifests:
 
         # Generate Static resources
         release_path = Path(self.manifest_path / self.current_release)
-        ymls = [
+        ymls = sorted(
             manifests
             for ext in FILE_TYPES
             for manifests in release_path.glob(f"*.{ext}")
-        ]
+        )
         statics = [rsc for yml in ymls for rsc in self._safe_load(yml)]
 
         # Apply subtractions
@@ -189,8 +195,14 @@ class Manifests:
         Lightkube can't properly read manifest files which contain List kinds.
         """
         content = filepath.read_text()
+
+        def create_crd(rsc):
+            if rsc.kind == "CustomResourceDefinition":
+                create_resources_from_crd(rsc)
+            return rsc
+
         return [
-            codecs.from_dict(item)  # Map to lightkube resources
+            create_crd(codecs.from_dict(item))  # Map to lightkube resources
             for rsc in yaml.safe_load_all(content)  # load content from file
             if rsc  # ignore empty objects
             for item in (rsc["items"] if rsc["kind"] == "List" else [rsc])
