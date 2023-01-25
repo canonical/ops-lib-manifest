@@ -68,7 +68,11 @@ class HashableResource:
         status = getattr(self.resource, "status", None)
         if not status:
             return []
-        return getattr(self.resource.status, "conditions", [])
+        if isinstance(self.resource.status, dict):
+            conditions = self.resource.status.get("conditions", [])
+        else:
+            conditions = getattr(self.resource.status, "conditions", [])
+        return conditions
 
     @property
     def kind(self) -> str:
