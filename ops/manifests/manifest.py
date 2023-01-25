@@ -6,6 +6,7 @@ import logging
 import os
 import re
 from collections import OrderedDict, namedtuple
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
 from typing import Dict, FrozenSet, KeysView, List, Optional, Union
@@ -46,6 +47,23 @@ def _by_version(version: str) -> Version:
         return int(part) if part.isdigit() else part
 
     return [convert(c) for c in _VERSION_SPLIT.split(version)]
+
+
+@contextmanager
+def _proxied_env():
+    """Use juju proxy environment variables."""
+    orig = dict(os.environ)
+    proxies = {
+        "https_proxy": os.environ.get("JUJU_CHARM_HTTPS_PROXY"),
+        "http_proxy": os.environ.get("JUJU_CHARM_HTTP_PROXY"),
+        "no_proxy": os.environ.get("JUJU_CHARM_NO_PROXY"),
+    }
+    os.environ.update({k:v for k,v in proxies.items() if isinstance(v, str)})
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(orig)
 
 
 class Manifests:
@@ -94,7 +112,9 @@ class Manifests:
     @cached_property
     def client(self) -> Client:
         """Lazy evaluation of the lightkube client."""
-        client = Client(field_manager=f"{self.model.app.name}-{self.name}")
+        with _proxied_env():
+            # Construct the client with juju proxy environment vars
+            client = Client(field_manager=f"{self.model.app.name}-{self.name}")
         load_in_cluster_generic_resources(client)
         return client
 
