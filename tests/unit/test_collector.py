@@ -36,6 +36,7 @@ def test_collector_list_resources_all(manifest):
         {
             "test-manifest-missing": "\n".join(
                 [
+                    "CustomResourceDefinition/test-manifest-crd",
                     "Deployment/kube-system/test-manifest-deployment",
                     "Secret/kube-system/test-manifest-secret",
                     "ServiceAccount/kube-system/test-manifest-manager",
@@ -131,5 +132,6 @@ def test_collector_unready(manifest, lk_client):
     with mock.patch.object(lk_client, "get") as mock_get:
         mock_get.side_effect = mock_get_responder
         assert collector.unready == [
+            template.format("CustomResourceDefinition/test-manifest-crd"),
             template.format("Deployment/kube-system/test-manifest-deployment"),
         ]
