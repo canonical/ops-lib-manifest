@@ -58,7 +58,7 @@ def _proxied_env():
         "http_proxy": os.environ.get("JUJU_CHARM_HTTP_PROXY"),
         "no_proxy": os.environ.get("JUJU_CHARM_NO_PROXY"),
     }
-    os.environ.update({k:v for k,v in proxies.items() if isinstance(v, str)})
+    os.environ.update({k: v for k, v in proxies.items() if isinstance(v, str)})
     try:
         yield
     finally:
@@ -88,7 +88,7 @@ class Manifests:
         name: str,
         model: Model,
         base_path: PathLike,
-        manipulations: List[Manipulation] = None,
+        manipulations: Optional[List[Manipulation]] = None,
     ):
         """Create Manifests object.
 

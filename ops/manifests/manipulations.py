@@ -127,8 +127,11 @@ class Addition(Manipulation):
 class Subtraction(Manipulation):
     """Class used to define objects to subtract from the original manifests."""
 
-    def __call__(self, obj: AnyResource) -> bool:
-        """Method called to optionally subtract an object."""
+    def __call__(self, obj: AnyResource) -> bool:  # type: ignore
+        """Method called to optionally subtract an object.
+
+        this is an abstract method, each implementation should return a bool
+        """
         ...
 
 
