@@ -94,7 +94,6 @@ class Manifests:
     @cached_property
     def client(self) -> Client:
         """Lazy evaluation of the lightkube client."""
-        # Construct the client with juju proxy environment vars
         client = Client(field_manager=f"{self.model.app.name}-{self.name}")
         load_in_cluster_generic_resources(client)
         return client
