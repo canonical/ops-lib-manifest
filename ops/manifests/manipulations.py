@@ -4,7 +4,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Iterable, List, Optional
+from typing import TYPE_CHECKING, Callable, Iterable, List, Mapping, Optional
 
 from lightkube import codecs
 from lightkube.codecs import AnyResource
@@ -64,19 +64,25 @@ class HashableResource:
         return self.kind, self.namespace, self.name
 
     @staticmethod
-    def _condition_unwrap(condition) -> AnyCondition:
-        _status, _type = (condition.get(_) for _ in ("status", "type"))
-        return AnyCondition(_status, _type)
+    def _condition_unwrap(condition: Mapping[str, str]) -> Optional[AnyCondition]:
+        """Attempt to retrieve status and type from a Mapping"""
+        try:
+            _status, _type = (condition[_] for _ in ("status", "type"))
+            return AnyCondition(_status, _type)
+        except KeyError:
+            return None
 
     @property
     def status_conditions(self) -> List[AnyCondition]:
         status = getattr(self.resource, "status", None)
         if not status:
             return []
-        if isinstance(self.resource.status, dict):
+        elif isinstance(self.resource.status, dict):
             conditions = [
-                self._condition_unwrap(_)
-                for _ in self.resource.status.get("conditions", [])
+                _
+                for c in self.resource.status.get("conditions", [])
+                for _ in map(self._condition_unwrap, [c])
+                if _
             ]
         else:
             conditions = getattr(self.resource.status, "conditions", [])
