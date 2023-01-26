@@ -54,27 +54,6 @@ def _unique(collection, key):
             yield item
 
 
-class _ConditionWrap:
-    """Wraps a lightkube condition so it has a status & type properties."""
-
-    def __init__(self, condition):
-        self._condition = condition
-
-    @property
-    def status(self) -> str:
-        """Supports getting the status of a CustomResourceDefinition Resource."""
-        if isinstance(self._condition, dict) and "status" in self._condition:
-            return self._condition["status"]
-        return self._condition.status
-
-    @property
-    def type(self) -> str:
-        """Supports getting the type of a CustomResourceDefinition Resource."""
-        if isinstance(self._condition, dict) and "type" in self._condition:
-            return self._condition["type"]
-        return self._condition.type
-
-
 class HashableResource:
     """Wraps a lightkube resource object so it is hashable."""
 
@@ -84,16 +63,24 @@ class HashableResource:
     def __uniq(self):
         return self.kind, self.namespace, self.name
 
+    @staticmethod
+    def _condition_unwrap(condition) -> AnyCondition:
+        _status, _type = (condition.get(_) for _ in ("status", "type"))
+        return AnyCondition(_status, _type)
+
     @property
     def status_conditions(self) -> List[AnyCondition]:
         status = getattr(self.resource, "status", None)
         if not status:
             return []
         if isinstance(self.resource.status, dict):
-            conditions = self.resource.status.get("conditions", [])
+            conditions = [
+                self._condition_unwrap(_)
+                for _ in self.resource.status.get("conditions", [])
+            ]
         else:
             conditions = getattr(self.resource.status, "conditions", [])
-        return [_ConditionWrap(c) for c in conditions]
+        return conditions
 
     @property
     def kind(self) -> str:

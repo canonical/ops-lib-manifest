@@ -117,26 +117,30 @@ def test_collector_install_missing_resources(
 
 
 def test_collector_unready(manifest, lk_client):
-    def mock_get_responder(klass, name, namespace=None):
-        Condition = namedtuple("Condition", "status,type")
+    Condition = namedtuple("Condition", "status,type")
+    conditions = iter(
+        [
+            [Condition("False", "Here")],
+            [dict(status="False", type="Ready")],
+        ]
+    )
+
+    def mock_status_responder(klass, name, namespace=None):
         response = mock.MagicMock(spec=klass)
         response.kind = klass.__name__
         response.metadata.name = name
         response.metadata.namespace = namespace
-        if hasattr(response, "status"):
-            response.status.conditions = [
-                Condition("False", "Here"),
-                {"status": "False", "type": "Ready"},
-            ]
+        if response.kind == "Deployment":
+            response.status.conditions = next(conditions)
+        elif response.kind == "CustomResourceDefinition":
+            response.status = {"conditions": next(conditions)}
         return response
 
     collector = Collector(manifest)
     template = "test-manifest: {} is not {}"
     with mock.patch.object(lk_client, "get") as mock_get:
-        mock_get.side_effect = mock_get_responder
+        mock_get.side_effect = mock_status_responder
         assert collector.unready == [
-            template.format("CustomResourceDefinition/test-manifest-crd", "Here"),
             template.format("CustomResourceDefinition/test-manifest-crd", "Ready"),
             template.format("Deployment/kube-system/test-manifest-deployment", "Here"),
-            template.format("Deployment/kube-system/test-manifest-deployment", "Ready"),
         ]
