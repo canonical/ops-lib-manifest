@@ -124,14 +124,19 @@ def test_collector_unready(manifest, lk_client):
         response.metadata.name = name
         response.metadata.namespace = namespace
         if hasattr(response, "status"):
-            response.status.conditions = [Condition("False", "Ready")]
+            response.status.conditions = [
+                Condition("False", "Here"),
+                {"status": "False", "type": "Ready"},
+            ]
         return response
 
     collector = Collector(manifest)
-    template = "test-manifest: {} is not Ready"
+    template = "test-manifest: {} is not {}"
     with mock.patch.object(lk_client, "get") as mock_get:
         mock_get.side_effect = mock_get_responder
         assert collector.unready == [
-            template.format("CustomResourceDefinition/test-manifest-crd"),
-            template.format("Deployment/kube-system/test-manifest-deployment"),
+            template.format("CustomResourceDefinition/test-manifest-crd", "Here"),
+            template.format("CustomResourceDefinition/test-manifest-crd", "Ready"),
+            template.format("Deployment/kube-system/test-manifest-deployment", "Here"),
+            template.format("Deployment/kube-system/test-manifest-deployment", "Ready"),
         ]
