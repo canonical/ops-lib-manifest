@@ -3,10 +3,10 @@
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Iterable, List, MutableMapping, Optional
+from typing import Iterable, List, Mapping, MutableMapping, Optional, Tuple
 
 from .manifest import Manifests
-from .manipulations import HashableResource
+from .manipulations import AnyCondition, HashableResource
 
 
 @dataclass
@@ -86,14 +86,31 @@ class Collector:
 
     @property
     def unready(self) -> List[str]:
-        """Status of unready resources."""
+        """List of statuses of resources with non-ready conditions."""
         return sorted(
             f"{name}: {obj} is not {cond.type}"
+            for (name, obj), cond in self.conditions.items()
+            if cond.status != "True"
+        )
+
+    @property
+    def conditions(self) -> Mapping[Tuple[str, HashableResource], AnyCondition]:
+        """
+        Condition of all resources with `$obj.status.conditions[]`.
+
+        The key of the mapping is the pair of
+          * the name of the manifest in the collection
+          * the installed resource in the cluster
+
+        Each value represents a Condition which conforms to proposed spec
+        https://github.com/kubernetes/enhancements/blob/dfb5b64322fe861fcc173ca8246a2ec5a511e46e/keps/sig-api-machinery/1623-standardize-conditions/README.md#proposal
+        """
+        return {
+            (name, obj): cond
             for name, manifest in self.manifests.items()
             for obj in manifest.status()
             for cond in obj.status_conditions
-            if cond.status != "True"
-        )
+        }
 
     @property
     def short_version(self) -> str:
