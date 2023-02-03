@@ -189,6 +189,8 @@ class Manifests:
         ).keys()
 
     def _resource_from_yaml(self, filepath: Path) -> List[AnyResource]:
+        """Read manifest file and parse its contents into Lightkube Objects."""
+
         def create_crd(rsc):
             if rsc.kind == "CustomResourceDefinition":
                 create_resources_from_crd(rsc)
@@ -201,7 +203,7 @@ class Manifests:
 
     @lru_cache()
     def _safe_load(self, filepath: Path) -> List[Mapping]:
-        """Read manifest file and parse its content into lightkube objects.
+        """Read manifest file and parse its content into dicts.
 
         Lightkube can't properly read manifest files which contain List kinds.
         """
