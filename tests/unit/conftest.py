@@ -10,7 +10,7 @@ from ops.charm import CharmBase
 from ops.testing import Harness
 
 from ops.manifests import Manifests
-from ops.manifests.manipulations import ManifestLabel, SubtractEq
+from ops.manifests.manipulations import ConfigRegistry, ManifestLabel, SubtractEq
 
 
 @pytest.fixture(autouse=True)
@@ -67,7 +67,11 @@ def manifest(harness):
                 "test-manifest",
                 harness.model,
                 "tests/data/mock_manifests",
-                [ManifestLabel(self), SubtractEq(self, remove_me)],
+                [
+                    ManifestLabel(self),
+                    SubtractEq(self, remove_me),
+                    ConfigRegistry(self),
+                ],
             )
 
         @property
