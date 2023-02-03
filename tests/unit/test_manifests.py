@@ -100,6 +100,17 @@ def mock_list_responder(klass, namespace=None, labels=None):
     return [response]
 
 
+def test_single_manipulations(manifest):
+    manifest.data = {"image-registry": "rocks.canonical.com/cdk"}
+    _ = manifest.resources
+    second = manifest.resources
+    for obj in second:
+        if obj.kind == "Deployment":
+            image_path = obj.resource.spec.template.spec.containers[0].image
+            assert image_path.startswith("rocks.canonical.com/cdk")
+            assert not image_path.startswith("rocks.canonical.com/cdk/cdk")
+
+
 def test_status(manifest, lk_client):
     with mock.patch.object(lk_client, "get") as mock_get:
         mock_get.side_effect = mock_get_responder

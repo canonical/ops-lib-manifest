@@ -27,6 +27,10 @@ metadata:
   name: test-manifest-deployment
   namespace: kube-system
 spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
   template:
     metadata:
       labels:

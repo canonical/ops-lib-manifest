@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict, namedtuple
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, FrozenSet, KeysView, List, Optional, Union
+from typing import Dict, FrozenSet, KeysView, List, Mapping, Optional, Union
 
 import yaml
 from backports.cached_property import cached_property
@@ -170,7 +170,7 @@ class Manifests:
             for ext in FILE_TYPES
             for manifests in release_path.glob(f"*.{ext}")
         )
-        statics = [rsc for yml in ymls for rsc in self._safe_load(yml)]
+        statics = [rsc for yml in ymls for rsc in self._resource_from_yaml(yml)]
 
         # Apply subtractions
         for manipulate in self.manipulations:
@@ -188,14 +188,7 @@ class Manifests:
             (HashableResource(obj), None) for obj in all_resources
         ).keys()
 
-    @lru_cache()
-    def _safe_load(self, filepath: Path) -> List[AnyResource]:
-        """Read manifest file and parse its content into lightkube objects.
-
-        Lightkube can't properly read manifest files which contain List kinds.
-        """
-        content = filepath.read_text()
-
+    def _resource_from_yaml(self, filepath: Path) -> List[AnyResource]:
         def create_crd(rsc):
             if rsc.kind == "CustomResourceDefinition":
                 create_resources_from_crd(rsc)
@@ -203,6 +196,19 @@ class Manifests:
 
         return [
             create_crd(codecs.from_dict(item))  # Map to lightkube resources
+            for item in self._safe_load(filepath)
+        ]
+
+    @lru_cache()
+    def _safe_load(self, filepath: Path) -> List[Mapping]:
+        """Read manifest file and parse its content into lightkube objects.
+
+        Lightkube can't properly read manifest files which contain List kinds.
+        """
+        content = filepath.read_text()
+
+        return [
+            rsc
             for rsc in yaml.safe_load_all(content)  # load content from file
             if rsc  # ignore empty objects
             for item in (rsc["items"] if rsc["kind"] == "List" else [rsc])
