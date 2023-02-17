@@ -207,11 +207,30 @@ class ConfigRegistry(Patch):
         registry = self.manifests.config.get("image-registry")
         if not registry:
             return
-        if obj.kind in ["Pod"]:
+        if obj.kind in [
+            # https://kubernetes.io/docs/concepts/workloads/pods/
+            "Pod"
+        ]:
             spec = obj.spec
-        elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet", "Job"]:
+        elif obj.kind in [
+            # https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+            "DaemonSet",
+            # https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+            "Deployment",
+            # https://kubernetes.io/docs/concepts/workloads/controllers/job/
+            "Job",
+            # https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+            "ReplicaSet",
+            # https://kubernetes.io/docs/concepts/workloads/controllers/replicationcontroller/
+            "ReplicationController",
+            # https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+            "StatefulSet",
+        ]:
             spec = obj.spec.template.spec
-        elif obj.kind in ["CronJob"]:
+        elif obj.kind in [
+            # https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+            "CronJob"
+        ]:
             spec = obj.spec.jobTemplate.spec.template.spec
         else:
             spec = None
