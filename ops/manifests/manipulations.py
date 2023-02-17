@@ -207,7 +207,10 @@ class ConfigRegistry(Patch):
         registry = self.manifests.config.get("image-registry")
         if not registry:
             return
-        if obj.kind in ["Pod"]:
+        if obj.kind in [
+            # https://kubernetes.io/docs/concepts/workloads/pods/
+            "Pod"
+        ]:
             spec = obj.spec
         elif obj.kind in [
             # https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
