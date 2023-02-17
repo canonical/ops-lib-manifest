@@ -209,8 +209,10 @@ class ConfigRegistry(Patch):
             return
         if obj.kind in ["Pod"]:
             spec = obj.spec
-        elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet"]:
+        elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet", "Job"]:
             spec = obj.spec.template.spec
+        elif obj.kind in ["CronJob"]:
+            spec = obj.spec.jobTemplate.spec.template.spec
         else:
             spec = None
 
