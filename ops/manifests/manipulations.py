@@ -209,9 +209,18 @@ class ConfigRegistry(Patch):
             return
         if obj.kind in ["Pod"]:
             spec = obj.spec
-        elif obj.kind in ["DaemonSet", "Deployment", "StatefulSet", "Job"]:
+        elif obj.kind in [
+            "DaemonSet",  # https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+            "Deployment",  # https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+            "Job",  # https://kubernetes.io/docs/concepts/workloads/controllers/job/
+            "ReplicaSet",  # https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/
+            "ReplicationController",  # https://kubernetes.io/docs/concepts/workloads/controllers/replicationcontroller/
+            "StatefulSet",  # https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+        ]:
             spec = obj.spec.template.spec
-        elif obj.kind in ["CronJob"]:
+        elif obj.kind in [
+            "CronJob"  # https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+        ]:
             spec = obj.spec.jobTemplate.spec.template.spec
         else:
             spec = None
