@@ -3,8 +3,8 @@
 
 import unittest.mock as mock
 from collections import namedtuple
-import httpx
 
+import httpx
 import pytest
 
 from ops.manifests import HashableResource, ManifestClientError, Manifests
@@ -12,7 +12,9 @@ from ops.manifests import HashableResource, ManifestClientError, Manifests
 
 @pytest.mark.ignore_client_autouse
 def test_fail_load_crds(mock_load_in_cluster_generic_resources):
-    mock_load_in_cluster_generic_resources.side_effect = httpx.ConnectError("SSL: CERTIFICATE_VERIFY_FAILED")
+    mock_load_in_cluster_generic_resources.side_effect = httpx.ConnectError(
+        "SSL: CERTIFICATE_VERIFY_FAILED"
+    )
     model = mock.MagicMock(autospec="ops.model.Model")
     m1 = Manifests("m1", model, "tests/data/mock_manifests")
     with pytest.raises(ManifestClientError):
