@@ -12,7 +12,7 @@ from typing import Dict, FrozenSet, KeysView, List, Mapping, Optional, Union
 
 import yaml
 from backports.cached_property import cached_property
-from httpx import HTTPStatusError
+from httpx import HTTPError
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
 from lightkube.core.exceptions import ApiError
@@ -95,7 +95,12 @@ class Manifests:
     def client(self) -> Client:
         """Lazy evaluation of the lightkube client."""
         client = Client(field_manager=f"{self.model.app.name}-{self.name}")
-        load_in_cluster_generic_resources(client)
+        msg = "Failed to load in cluster CRDs"
+        try:
+            load_in_cluster_generic_resources(client)
+        except (ApiError, HTTPError) as ex:
+            log.exception(msg)
+            raise ManifestClientError(msg, ex) from ex
         return client
 
     @property
@@ -230,7 +235,7 @@ class Manifests:
                     obj.name,
                     namespace=obj.namespace,
                 )
-            except (ApiError, HTTPStatusError):
+            except (ApiError, HTTPError):
                 log.exception(f"Didn't find expected resource installed ({obj})")
                 continue
             result[HashableResource(next_rsc)] = None
@@ -275,7 +280,7 @@ class Manifests:
             msg = f"Failed Applying {rsc}"
             try:
                 self.client.apply(rsc.resource, force=True)
-            except (ApiError, HTTPStatusError) as ex:
+            except (ApiError, HTTPError) as ex:
                 log.exception(msg)
                 raise ManifestClientError(msg, ex) from ex
         log.info(f"Applied {len(resources)} Resources")
@@ -293,7 +298,7 @@ class Manifests:
             try:
                 namespace = obj.namespace or namespace
                 self.client.delete(type(obj.resource), obj.name, namespace=namespace)
-            except (ApiError, HTTPStatusError) as ex:
+            except (ApiError, HTTPError) as ex:
                 msg = str(ex)
                 if hasattr(ex, "status") and ex.status.message is not None:
                     msg = ex.status.message
