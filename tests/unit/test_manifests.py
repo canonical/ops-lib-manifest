@@ -10,7 +10,6 @@ import pytest
 from ops.manifests import HashableResource, ManifestClientError, Manifests
 
 
-@pytest.mark.ignore_client_autouse
 def test_fail_load_crds(mock_load_in_cluster_generic_resources):
     mock_load_in_cluster_generic_resources.side_effect = httpx.ConnectError(
         "SSL: CERTIFICATE_VERIFY_FAILED"

@@ -22,18 +22,13 @@ def mock_load_in_cluster_generic_resources():
 
 
 @pytest.fixture(autouse=True)
-def lk_client(request, mock_load_in_cluster_generic_resources):
-    if "ignore_client_autouse" in request.keywords:
-        yield None
-    else:
-        with mock.patch(
-            "ops.manifests.manifest.Client", autospec=True
-        ) as mock_lightkube:
-            yield mock_lightkube.return_value
-        if mock_load_in_cluster_generic_resources.called:
-            mock_load_in_cluster_generic_resources.assert_called_with(
-                mock_lightkube.return_value
-            )
+def lk_client(mock_load_in_cluster_generic_resources):
+    with mock.patch("ops.manifests.manifest.Client", autospec=True) as mock_lightkube:
+        yield mock_lightkube.return_value
+    if mock_load_in_cluster_generic_resources.called:
+        mock_load_in_cluster_generic_resources.assert_called_with(
+            mock_lightkube.return_value
+        )
 
 
 @pytest.fixture()
