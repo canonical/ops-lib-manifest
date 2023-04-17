@@ -8,6 +8,29 @@ Versions follow `Semantic Versioning <https://semver.org/>`_ (``<major>.<minor>.
 
 Backward incompatible (breaking) changes will only be introduced in major versions
 
+ops-lib-manifest 1.1.2 (2023-04-17)
+=========================
+
+Issues Resolved
+* [LP#2006619](https://launchpad.net/bugs/2006619)
+    - resolves status issues when trying to use a client
+      which cannot reach the API endpoint
+
+ops-lib-manifest 1.1.1 (2022-04-06)
+=========================
+
+Issues Resolved
+* [LP#1999427](https://launchpad.net/bugs/1999427)
+    - resolve issues when loading CRDs from an
+      unreachable API endpoint
+
+ops-lib-manifest 1.1.0 (2022-02-17)
+=========================
+
+Feature
+* Supports image manipulation of `Job`, `CronJob`,
+  `ReplicationController` and `ReplicaSet` objects
+
 
 ops-lib-manifest 1.0.0 (2022-12-14)
 =========================
