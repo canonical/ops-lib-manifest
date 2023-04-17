@@ -235,6 +235,11 @@ class Manifests:
                     obj.name,
                     namespace=obj.namespace,
                 )
+            except ManifestClientError:
+                log.exception(
+                    f"Cannot connect to the api endpoint, marking ({obj}) as missing"
+                )
+                continue
             except (ApiError, HTTPError):
                 log.exception(f"Didn't find expected resource installed ({obj})")
                 continue
