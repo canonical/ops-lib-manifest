@@ -212,14 +212,23 @@ class Manifests:
 
         Lightkube can't properly read manifest files which contain List kinds.
         """
-        content = filepath.read_text()
 
-        return [
-            rsc
-            for rsc in yaml.safe_load_all(content)  # load content from file
-            if rsc  # ignore empty objects
-            for item in (rsc["items"] if rsc["kind"] == "List" else [rsc])
-        ]
+        def _flatten(raw_resources):
+            resources = []
+            for rsc in raw_resources:
+                if not isinstance(rsc, dict):
+                    # found a non-dict item?  Let's log it
+                    log.warning(f"Ignoring non-dictionary resource rsc='{rsc}'")
+                elif rsc.get("kind") == "List":
+                    # found a "List" kind -- lets _flatten all its "items"
+                    resources += _flatten(rsc.get("items", []))
+                else:
+                    # found a non-"List" kind
+                    resources.append(rsc)
+            return resources
+
+        content_list = yaml.safe_load_all(filepath.read_text())
+        return _flatten(content_list)
 
     def status(self) -> FrozenSet[HashableResource]:
         """Returns all installed objects which have a `.status.conditions` attribute."""
