@@ -215,7 +215,7 @@ class Manifests:
         content = filepath.read_text()
 
         return [
-            rsc
+            item
             for rsc in yaml.safe_load_all(content)  # load content from file
             if rsc  # ignore empty objects
             for item in (rsc["items"] if rsc["kind"] == "List" else [rsc])
