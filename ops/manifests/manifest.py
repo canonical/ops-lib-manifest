@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict, namedtuple
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, FrozenSet, KeysView, List, Mapping, Optional, Union
+from typing import Dict, FrozenSet, Iterator, KeysView, List, Mapping, Optional, Union
 
 import yaml
 from backports.cached_property import cached_property
@@ -208,24 +208,41 @@ class Manifests:
 
     @lru_cache()
     def _safe_load(self, filepath: Path) -> List[Mapping]:
-        """Read manifest file and parse its content into dicts.
+        """Read manifest file and parse its content into list of dicts.
 
-        Lightkube can't properly read manifest files which contain List kinds.
+        Note: Lightkube can't properly read kind=List (a list of kubernetes resources).
+        Therefore this method will also flatten all kind=List resources into a python
+        list of resources.
         """
 
-        def _flatten(raw_resources):
+        def _flatten(raw_resources: Iterator) -> List[Mapping]:
+            """Flatten objects in a given python iterator which are kind=List."""
             resources = []
             for rsc in raw_resources:
-                if not isinstance(rsc, dict):
+                if not isinstance(rsc, Mapping):
                     # found a non-dict item?  Let's log it
-                    log.warning(f"Ignoring non-dictionary resource rsc='{rsc}'")
-                elif rsc.get("kind") == "List":
+                    log.warning(
+                        f"Ignoring non-dictionary resource rsc='{rsc}' in {filepath}"
+                    )
+                elif not rsc.get("kind") or not rsc.get("apiVersion"):
+                    log.warning(
+                        f"Ignoring non-kubernetes resource rsc='{rsc}' in {filepath}"
+                    )
+                elif rsc["kind"] == "List":
                     # found a "List" kind -- lets _flatten all its "items"
                     resources += _flatten(rsc.get("items", []))
                 else:
                     # found a non-"List" kind
                     resources.append(rsc)
             return resources
+
+        # read manifest file as a list
+        # yaml.safe_load_all(..) can read yaml documents which contain
+        #   * 1 kubernetes resource
+        #       * yields a list with 1 item
+        #   * N kubernetes resources separated with the document separator
+        #       * https://yaml.org/spec/1.0/#id2561718
+        #       * yields a list of N items
 
         content_list = yaml.safe_load_all(filepath.read_text())
         return _flatten(content_list)
