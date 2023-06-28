@@ -8,6 +8,14 @@ Versions follow `Semantic Versioning <https://semver.org/>`_ (``<major>.<minor>.
 
 Backward incompatible (breaking) changes will only be introduced in major versions
 
+ops-lib-manifest 1.1.3 (2023-06-28)
+=========================
+
+Issues Resolved
+* [LP#2025087](https://launchpad.net/bugs/2025087)
+   - resolves issue where every item from a List 
+     type resource object is read from the list
+
 ops-lib-manifest 1.1.2 (2023-04-17)
 =========================
 
