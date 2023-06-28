@@ -1,8 +1,11 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import logging
 import unittest.mock as mock
 from collections import namedtuple
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 import httpx
 import pytest
@@ -336,3 +339,67 @@ def test_delete_resource_http_error(manifest, http_gateway_error, caplog):
     obj = "Secret/kube-system/test-manifest-secret"
     assert caplog.messages[0] == f"Deleting {obj}..."
     assert caplog.messages[1] == f"Failed to delete resource: {obj}"
+
+
+@pytest.fixture()
+def tmp_manifests(tmp_path):
+    model = mock.MagicMock(autospec="ops.model.Model")
+    invalid_manifest_path = Path(tmp_path / "manifests/v1")
+    invalid_manifest_path.mkdir(parents=True)
+    with mock.patch(
+        "ops.manifests.Manifests.config",
+        mock.PropertyMock(return_value={"release": "v1"}),
+    ):
+        yield Manifests("m1", model, tmp_path)
+
+
+def test_non_dictionary_resource(tmp_manifests, caplog):
+    caplog.set_level(logging.WARNING)
+    path = tmp_manifests.base_path / "manifests" / tmp_manifests.current_release
+    with NamedTemporaryFile(mode="w+t", dir=path, suffix=".yaml") as fp:
+        fp.write("non-yaml")
+        fp.flush()
+        assert not tmp_manifests.resources
+    assert caplog.messages == [
+        f"Ignoring non-dictionary resource rsc='non-yaml' in {fp.name}"
+    ]
+
+
+def test_non_kubernetes_resource(tmp_manifests, caplog):
+    caplog.set_level(logging.WARNING)
+    path = tmp_manifests.base_path / "manifests" / tmp_manifests.current_release
+    with NamedTemporaryFile(mode="w+t", dir=path, suffix=".yaml") as fp:
+        fp.write("kind: Missing apiVersion")
+        fp.flush()
+        assert not tmp_manifests.resources
+    rsc = "{'kind': 'Missing apiVersion'}"
+    assert caplog.messages == [
+        f"Ignoring non-kubernetes resource rsc='{rsc}' in {fp.name}"
+    ]
+
+
+def test_nested_kubernetes_resource(tmp_manifests, caplog):
+    caplog.set_level(logging.WARNING)
+    path = tmp_manifests.base_path / "manifests" / tmp_manifests.current_release
+    with NamedTemporaryFile(mode="w+t", dir=path, suffix=".yaml") as fp:
+        fp.write(
+            """---
+apiVersion: v1
+kind: List
+items:
+- apiVersion: v1
+  kind: List
+  items:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: test
+      namespace: default
+"""
+        )
+        fp.flush()
+        assert len(tmp_manifests.resources) == 1
+        (elem,) = tmp_manifests.resources
+        assert elem.kind == "Pod"
+        assert elem.name == "test"
+        assert elem.namespace == "default"
