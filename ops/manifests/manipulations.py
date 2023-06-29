@@ -275,12 +275,7 @@ def update_tolerations(obj: AnyResource, adjuster: TolerationAdjuster):
 
 
 class SubtractEq(Subtraction):
-    """Ensure every manifest item is labeled with the manifest name.
-
-    Similar to helm charts, add to each metadata some information
-    regarding what applied this resource up
-    https://helm.sh/docs/chart_best_practices/labels/
-    """
+    """Remove any resource if they match a provided resource."""
 
     def __init__(self, manifests: "Manifests", to_compare: AnyResource) -> None:
         super().__init__(manifests)

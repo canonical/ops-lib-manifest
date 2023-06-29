@@ -126,7 +126,7 @@ class Collector:
 
     def _list_resources(
         self, event, manifests: Optional[str], resources: Optional[str]
-    ):
+    ) -> Mapping[str, _ResourceAnalysis]:
         filter_manifests = manifests.split() if manifests else []
         filter_resources = resources.split() if resources else []
 
