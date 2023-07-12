@@ -210,7 +210,7 @@ class Manifests:
     def _safe_load(self, filepath: Path) -> List[Mapping]:
         """Read manifest file and parse its content into list of dicts.
 
-        Note: Lightkube can't properly read kind = *List (a list of kubernetes resources).
+        Note: Lightkube can't properly read kind = *List (a list of k8s resources).
         Therefore this method will also flatten all kind = *List resources into a python
         list of resources.
         """
