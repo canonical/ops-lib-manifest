@@ -228,9 +228,9 @@ class Manifests:
                     log.warning(
                         f"Ignoring non-kubernetes resource rsc='{rsc}' in {filepath}"
                     )
-                elif rsc["kind"].endswith("List") and (items := rsc.get("items")):
+                elif rsc["kind"].endswith("List"):
                     # found a "*List" kind -- lets _flatten all its "items"
-                    resources += _flatten(items)
+                    resources += _flatten(rsc.get("items", []))
                 else:
                     # found a non-"List" kind
                     resources.append(rsc)
