@@ -234,34 +234,67 @@ def test_labelled_resources(manifest, lk_client):
     assert element.kind == "ServiceAccount"
 
 
-def test_delete_no_resources(manifest, lk_client):
-    with mock.patch.object(lk_client, "delete") as mock_delete:
+def test_delete_no_resources(manifest):
+    with mock.patch.object(manifest, "_delete") as mock_delete:
         manifest.delete_resource()
     mock_delete.assert_not_called()
 
 
-def test_delete_one_resource(manifest, lk_client, caplog):
+def test_delete_ignore_labels(manifest, lk_client, caplog):
     rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     with mock.patch.object(lk_client, "delete") as mock_delete:
-        manifest.delete_resource(element)
+        manifest.delete_resource(element, ignore_labels=True)
     mock_delete.assert_called_once_with(
-        type(element.resource), "test-manifest-secret", namespace="kube-system"
+        type(element.resource),
+        "test-manifest-secret",
+        namespace="kube-system",
     )
     assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret..."
 
 
-def test_delete_current_resources(manifest, lk_client, caplog):
+def test_delete_observe_labels(manifest, lk_client, caplog):
+    rscs = manifest.resources
+    element = next(rsc for rsc in rscs if rsc.kind == "Secret")
+    rsc_type = type(element.resource)
+    rsc_name = "test-manifest-secret"
+    rsc_ns = element.resource.metadata.namespace
+    filter_labels = {
+        "juju.io/application": "unit-testing",
+        "juju.io/manifest": "test-manifest",
+    }
     with mock.patch.object(lk_client, "delete") as mock_delete:
+        with mock.patch.object(lk_client, "list") as mock_list:
+            mock_list.return_value = [element.resource]
+            manifest.delete_resource(element, ignore_labels=False)
+    mock_delete.assert_called_once_with(rsc_type, rsc_name, namespace=rsc_ns)
+    mock_list.assert_called_once_with(
+        rsc_type,
+        namespace=rsc_ns,
+        labels=filter_labels,
+        fields={"metadata.name": rsc_name},
+    )
+    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret..."
+
+
+def test_delete_one_resource(manifest, caplog):
+    rscs = manifest.resources
+    element = next(rsc for rsc in rscs if rsc.kind == "Secret")
+    with mock.patch.object(manifest, "_delete") as mock_delete:
+        manifest.delete_resource(element)
+    mock_delete.assert_called_once_with(element, "kube-system", False)
+    assert caplog.messages[0] == "Deleting Secret/kube-system/test-manifest-secret..."
+
+
+def test_delete_current_resources(manifest, caplog):
+    with mock.patch.object(manifest, "_delete") as mock_delete:
         manifest.delete_manifests()
     assert len(caplog.messages) == 4, "Should delete the 4 resources in this release"
     assert all(msg.startswith("Deleting") for msg in caplog.messages)
 
     rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
-    mock_delete.assert_any_call(
-        type(element.resource), "test-manifest-secret", namespace="kube-system"
-    )
+    mock_delete.assert_any_call(element, "kube-system", False)
 
 
 @pytest.mark.parametrize(
@@ -272,20 +305,18 @@ def test_delete_current_resources(manifest, lk_client, caplog):
     ],
     ids=["Not found ignored", "Unauthorized ignored"],
 )
-def test_delete_resource_errors(manifest, api_error_klass, lk_client, caplog, status):
+def test_delete_resource_errors(manifest, api_error_klass, caplog, status):
     rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     api_error_klass.status.message = status
 
-    with mock.patch.object(lk_client, "delete") as mock_delete:
+    with mock.patch.object(manifest, "_delete") as mock_delete:
         mock_delete.side_effect = api_error_klass
         manifest.delete_resource(
             element, ignore_unauthorized=True, ignore_not_found=True
         )
 
-    mock_delete.assert_called_once_with(
-        type(element.resource), "test-manifest-secret", namespace="kube-system"
-    )
+    mock_delete.assert_called_once_with(element, "kube-system", False)
     obj = "Secret/kube-system/test-manifest-secret"
     assert caplog.messages[0] == f"Deleting {obj}..."
     assert caplog.messages[1] == f"Ignored failed delete of resource: {obj}"
@@ -306,16 +337,13 @@ def test_delete_resource_api_error(manifest, api_error_klass, caplog, status):
     api_error_klass.status.message = status
 
     with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
-        mock_client.delete.side_effect = api_error_klass
+        manifest, "_delete", side_effect=api_error_klass
+    ) as mock_delete:
         with pytest.raises(ManifestClientError):
             manifest.delete_resource(
                 element, ignore_unauthorized=True, ignore_not_found=True
             )
-    mock_client.delete.assert_called_once_with(
-        type(element.resource), "test-manifest-secret", namespace="kube-system"
-    )
+    mock_delete.assert_called_once_with(element, "kube-system", False)
     obj = "Secret/kube-system/test-manifest-secret"
     assert caplog.messages[0] == f"Deleting {obj}..."
     assert caplog.messages[1] == f"Failed to delete resource: {obj}"
@@ -326,16 +354,13 @@ def test_delete_resource_http_error(manifest, http_gateway_error, caplog):
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
 
     with mock.patch.object(
-        manifest, "client", new_callable=mock.PropertyMock
-    ) as mock_client:
-        mock_client.delete.side_effect = http_gateway_error
+        manifest, "_delete", side_effect=http_gateway_error
+    ) as mock_delete:
         with pytest.raises(ManifestClientError):
             manifest.delete_resource(
                 element, ignore_unauthorized=True, ignore_not_found=True
             )
-    mock_client.delete.assert_called_once_with(
-        type(element.resource), "test-manifest-secret", namespace="kube-system"
-    )
+    mock_delete.assert_called_once_with(element, "kube-system", False)
     obj = "Secret/kube-system/test-manifest-secret"
     assert caplog.messages[0] == f"Deleting {obj}..."
     assert caplog.messages[1] == f"Failed to delete resource: {obj}"
