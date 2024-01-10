@@ -64,27 +64,28 @@ def test_collector_list_manifest_filter(manifest):
 
 @mock.patch("ops.manifests.collector.Collector._list_resources")
 def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
-    resource = codecs.from_dict(
-        dict(
-            apiVersion="v1",
-            kind="Namespace",
-            metadata=dict(name="delete-me"),
+    resource = HashableResource(
+        codecs.from_dict(
+            dict(
+                apiVersion="v1",
+                kind="Namespace",
+                metadata=dict(name="delete-me"),
+            )
         )
     )
     analysis = mock.MagicMock()
-    analysis.extra = {HashableResource(resource)}
+    analysis.extra = {resource}
     mock_list_resources.return_value = {"test-manifest": analysis}
 
     event = mock.MagicMock()
     collector = Collector(manifest)
-    collector.scrub_resources(event, None, None)
+    with mock.patch.object(manifest, "_delete") as mock_delete:
+        collector.scrub_resources(event, None, None)
 
     assert mock_list_resources.call_count == 2
     mock_list_resources.assert_called_with(event, None, None)
     event.log.assert_called_once_with("Removing Namespace/delete-me")
-    lk_client.delete.assert_called_once_with(
-        type(resource), "delete-me", namespace=None
-    )
+    mock_delete.assert_called_once_with(resource, None, False)
 
 
 @mock.patch("ops.manifests.collector.Collector._list_resources")

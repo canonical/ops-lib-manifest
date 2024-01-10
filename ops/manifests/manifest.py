@@ -322,13 +322,13 @@ class Manifests:
         namespace: Optional[str] = None,
         ignore_not_found: bool = False,
         ignore_unauthorized: bool = False,
+        ignore_labels: bool = False,
     ):
         """Delete specific resources."""
         for obj in resources:
-            log.info(f"Deleting {obj}...")
             try:
-                namespace = obj.namespace or namespace
-                self.client.delete(type(obj.resource), obj.name, namespace=namespace)
+                log.info(f"Deleting {obj}...")
+                self._delete(obj, obj.namespace or namespace, ignore_labels)
             except (ApiError, HTTPError) as ex:
                 msg = str(ex)
                 if hasattr(ex, "status") and ex.status.message is not None:
@@ -342,6 +342,23 @@ class Manifests:
                     log_msg = f"Failed to delete resource: {obj}"
                     log.exception(f"{log_msg}")
                     raise ManifestClientError(log_msg) from ex
+
+    def _delete(
+        self, obj: HashableResource, namespace: Optional[str], ignore_labels: bool
+    ):
+        if ignore_labels:
+            self.client.delete(type(obj.resource), obj.name, namespace=namespace)
+        else:
+            for item in self.client.list(
+                type(obj.resource),
+                namespace=namespace,
+                labels={
+                    "juju.io/application": self.model.app.name,
+                    "juju.io/manifest": self.name,
+                },
+                fields={"metadata.name": obj.name},
+            ):
+                self.client.delete(type(item), item.metadata.name, namespace=namespace)
 
     apply_resource = apply_resources
     delete_resource = delete_resources
