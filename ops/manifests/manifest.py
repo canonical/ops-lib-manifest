@@ -25,6 +25,7 @@ from ops.model import Model
 from .exceptions import ManifestClientError
 from .manipulations import (
     Addition,
+    AnyCondition,
     HashableResource,
     ManifestLabel,
     Manipulation,
@@ -250,6 +251,17 @@ class Manifests:
     def status(self) -> FrozenSet[HashableResource]:
         """Returns all installed objects which have a `.status.conditions` attribute."""
         return frozenset(_ for _ in self.installed_resources() if _.status_conditions)
+
+    def is_ready(self, obj: HashableResource, cond: AnyCondition) -> Optional[bool]:
+        """
+        Default Implementation
+        Can be overriden by a manifest object.
+
+        Evaluates True if an object's condition is ready.
+        Evaluates False if an object's condition is not ready.
+        Evaluates None if an object's condition should be ignored.
+        """
+        return cond.status == "True"
 
     def installed_resources(self) -> FrozenSet[HashableResource]:
         """All currently installed resources expected by this manifest."""

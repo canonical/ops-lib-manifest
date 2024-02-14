@@ -90,6 +90,16 @@ class ExampleApp(Manifests):
         config["release"] = config.pop("example-release", None)
         return config
 
+    def is_ready(self, obj, condition) -> bool:
+        """Filter conditions by object and condition."""
+        if (
+            obj.kind == "Deployment" and
+            obj.name == "MyDeployment" and
+            condition.type == "Ignored"
+        ):
+            return None  # ignore this condition
+        return super().is_ready(obj, condition)
+
 
 class ExampleCharm(CharmBase):
     def __init__(self, *args):

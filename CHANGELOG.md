@@ -8,6 +8,28 @@ Versions follow `Semantic Versioning <https://semver.org/>`_ (``<major>.<minor>.
 
 Backward incompatible (breaking) changes will only be introduced in major versions
 
+ops-lib-manifest 1.2.0 (2024-02-14)
+=========================
+* [#31](https://github.com/canonical/ops-lib-manifest/issues/31)
+  - The `Collector.conditions` property returns a mapping that ends up
+    hiding information relating to all the conditions of a kubernetes 
+    resource.  Only ONE condition is present in the mapping for each
+    resource. 
+  - Introduce `Collector.all_conditions` property returning a list of
+    conditions and their associated manifests and object
+  - Check unready using the `all_conditions` property
+* Allows a manifest to filter the ready check of each `condition` of an 
+  object that it has installed by overriding the `is_ready(..)` method
+
+
+
+ops-lib-manifest 1.1.4 (2024-01-10)
+=========================
+* only deletes resources created by this charm application
+* LP#2025283 - Audit library to ensure that secrets aren't leaked to logs
+* maintains python 3.7 compatability
+
+
 ops-lib-manifest 1.1.3 (2023-06-28)
 =========================
 

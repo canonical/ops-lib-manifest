@@ -89,8 +89,8 @@ class Collector:
         """List of statuses of resources with non-ready conditions."""
         return sorted(
             f"{name}: {obj} is not {cond.type}"
-            for (name, obj), cond in self.conditions.items()
-            if cond.status != "True"
+            for name, obj, cond in self.all_conditions
+            if self.manifests[name].is_ready(obj, cond) is False
         )
 
     @property
@@ -101,16 +101,28 @@ class Collector:
         The key of the mapping is the pair of
           * the name of the manifest in the collection
           * the installed resource in the cluster
+        """
+        return {(name, obj): cond for name, obj, cond in self.all_conditions}
+
+    @property
+    def all_conditions(self) -> List[Tuple[str, HashableResource, AnyCondition]]:
+        """
+        Condition of all resources with `$obj.status.conditions[]`.
+
+        The list contains tuples of
+          * the name of the manifest in the collection
+          * the installed resource in the cluster
+          * the condition
 
         Each value represents a Condition which conforms to proposed spec
         https://github.com/kubernetes/enhancements/blob/dfb5b64322fe861fcc173ca8246a2ec5a511e46e/keps/sig-api-machinery/1623-standardize-conditions/README.md#proposal
         """
-        return {
-            (name, obj): cond
+        return [
+            (name, obj, cond)
             for name, manifest in self.manifests.items()
             for obj in manifest.status()
             for cond in obj.status_conditions
-        }
+        ]
 
     @property
     def short_version(self) -> str:

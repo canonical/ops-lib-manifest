@@ -101,7 +101,10 @@ def mock_get_responder(klass, name, namespace=None):
     response.metadata.name = name
     response.metadata.namespace = namespace
     if hasattr(response, "status"):
-        response.status.conditions = [Condition("False", "Ready")]
+        response.status.conditions = [
+            Condition("False", "Ready"),
+            Condition("False", "Error"),
+        ]
     return response
 
 

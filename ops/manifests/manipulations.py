@@ -74,9 +74,10 @@ class HashableResource:
 
     @property
     def status_conditions(self) -> List[AnyCondition]:
+        conditions: List[AnyCondition] = []
         status = getattr(self.resource, "status", None)
         if not status:
-            return []
+            return conditions
         elif isinstance(self.resource.status, dict):
             conditions = [
                 _
