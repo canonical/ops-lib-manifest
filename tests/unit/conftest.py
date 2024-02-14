@@ -83,4 +83,9 @@ def manifest(harness):
         def config(self):
             return self.data
 
+        def is_ready(self, obj, cond):
+            if obj.kind == "CustomResourceDefinition" and cond.type == "Ignored":
+                return None
+            return cond.status == "True"
+
     yield TestManifests()
