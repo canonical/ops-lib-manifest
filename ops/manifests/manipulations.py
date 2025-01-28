@@ -157,7 +157,9 @@ class Addition(Manipulation):
     def __iter__(self) -> "Addition":
         """Treat every addition like a possible collection."""
         obj = self()
-        if obj is not None:
+        if obj is None:
+            self._called = iter(())
+        else:
             try:
                 self._called = iter(obj)
             except TypeError:
