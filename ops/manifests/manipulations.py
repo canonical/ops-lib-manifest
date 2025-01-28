@@ -4,13 +4,23 @@
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Iterable, List, Mapping, Optional
+from typing import (
+    TYPE_CHECKING,
+    Callable,
+    Iterable,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Union,
+)
 
 from lightkube import codecs
-from lightkube.codecs import AnyResource
 from lightkube.generic_resource import GenericGlobalResource, GenericNamespacedResource
 from lightkube.models.core_v1 import Toleration
 from lightkube.models.meta_v1 import Time
+
+AnyResource = Union[GenericGlobalResource, GenericNamespacedResource]
 
 if TYPE_CHECKING:
     from .manifest import Manifests  # pragma: no cover
@@ -138,9 +148,25 @@ class Patch(Manipulation):
 class Addition(Manipulation):
     """Class used to define objects to add to the original manifests."""
 
-    def __call__(self) -> Optional[AnyResource]:
+    _called: Iterator[AnyResource] = iter(())
+
+    def __call__(self) -> Union[None, AnyResource, Iterable[AnyResource]]:
         """Method called to optionally create an object."""
         ...
+
+    def __iter__(self) -> "Addition":
+        """Treat every addition like a possible collection."""
+        obj = self()
+        if obj is not None:
+            try:
+                self._called = iter(obj)
+            except TypeError:
+                self._called = iter((obj,))
+        return self
+
+    def __next__(self) -> AnyResource:
+        """Return the next element in the collection."""
+        return next(self._called)
 
 
 class Subtraction(Manipulation):
@@ -194,10 +220,11 @@ class ManifestLabel(Patch):
                 # Custom resources in lightkube are built differently
                 # from standard model resources
                 obj["metadata"]["labels"] = obj.metadata.labels or {}
+                obj["metadata"]["labels"].update(**labels)
             else:
                 # ensure object has labels
                 obj.metadata.labels = obj.metadata.labels or {}
-            obj.metadata.labels.update(**labels)
+                obj.metadata.labels.update(**labels)
 
 
 class ConfigRegistry(Patch):

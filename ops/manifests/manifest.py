@@ -8,7 +8,17 @@ import re
 from collections import OrderedDict, namedtuple
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, FrozenSet, Iterator, KeysView, List, Mapping, Optional, Union
+from typing import (
+    Dict,
+    FrozenSet,
+    Iterator,
+    KeysView,
+    List,
+    Mapping,
+    Optional,
+    Union,
+    no_type_check,
+)
 
 import yaml
 from backports.cached_property import cached_property
@@ -162,9 +172,10 @@ class Manifests:
             filter(
                 None,
                 (
-                    manipulate()
+                    add
                     for manipulate in self.manipulations
                     if isinstance(manipulate, Addition)
+                    for add in manipulate
                 ),
             )
         )
@@ -203,7 +214,7 @@ class Manifests:
             return rsc
 
         return [
-            create_crd(codecs.from_dict(item))  # Map to lightkube resources
+            create_crd(codecs.from_dict(dict(item)))  # Map to lightkube resources
             for item in self._safe_load(filepath)
         ]
 
@@ -263,6 +274,7 @@ class Manifests:
         """
         return cond.status == "True"
 
+    @no_type_check
     def installed_resources(self) -> FrozenSet[HashableResource]:
         """All currently installed resources expected by this manifest."""
         result: Dict[HashableResource, None] = OrderedDict()
@@ -355,6 +367,7 @@ class Manifests:
                     log.exception(f"{log_msg}")
                     raise ManifestClientError(log_msg) from ex
 
+    @no_type_check
     def _delete(
         self, obj: HashableResource, namespace: Optional[str], ignore_labels: bool
     ):

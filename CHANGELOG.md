@@ -8,6 +8,11 @@ Versions follow `Semantic Versioning <https://semver.org/>`_ (``<major>.<minor>.
 
 Backward incompatible (breaking) changes will only be introduced in major versions
 
+ops-lib-manifest 1.3.0 (2024-02-14)
+=========================
+* Allows an Addition object to create an iterable of Resources, not just
+  one or none.
+
 ops-lib-manifest 1.2.0 (2024-02-14)
 =========================
 * [#31](https://github.com/canonical/ops-lib-manifest/issues/31)
@@ -20,7 +25,6 @@ ops-lib-manifest 1.2.0 (2024-02-14)
   - Check unready using the `all_conditions` property
 * Allows a manifest to filter the ready check of each `condition` of an 
   object that it has installed by overriding the `is_ready(..)` method
-
 
 
 ops-lib-manifest 1.1.4 (2024-01-10)

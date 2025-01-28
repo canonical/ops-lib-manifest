@@ -3,9 +3,11 @@
 
 import unittest.mock as mock
 
+import pytest
 from lightkube.codecs import from_dict
 
 from ops.manifests import (
+    Addition,
     ConfigRegistry,
     CreateNamespace,
     ManifestLabel,
@@ -120,6 +122,7 @@ def test_manifest_label(manifest):
     adjustment(obj)
 
     assert obj.metadata, "Should have metadata"
+    assert obj.metadata.labels, "Should have labels"
     assert (
         obj.metadata.labels["pre-existing"] == "label"
     ), "Should leave existing labels alone"
@@ -209,3 +212,38 @@ def test_subtraction_eq(manifest):
     adjustment1 = SubtractEq(manifest, rsc1)
     assert adjustment1(rsc1)
     assert not adjustment1(rsc2)
+
+
+@pytest.mark.parametrize("secret_count", [0, 1, 2])
+def test_custom_addition(manifest, request, secret_count):
+    name = request.node.name
+
+    class CustomAddition(Addition):
+        def __call__(self):
+            if secret_count == 0:
+                # Simulate an addition that returns None when called
+                return None
+            if secret_count == 1:
+                # Simulate an addition that returns a single object
+                return from_dict(
+                    dict(
+                        apiVersion="v1",
+                        kind="Secret",
+                        metadata=dict(name=name),
+                    )
+                )
+            # Simulate an addition that returns any iterable
+            return [
+                from_dict(
+                    dict(
+                        apiVersion="v1",
+                        kind="Secret",
+                        metadata=dict(name=f"{name}-{i}"),
+                    )
+                )
+                for i in range(secret_count)
+            ]
+
+    manifest.manipulations.append(CustomAddition(manifest))
+    resources = manifest.resources
+    assert len([rsc for rsc in resources if name in rsc.name]) == secret_count

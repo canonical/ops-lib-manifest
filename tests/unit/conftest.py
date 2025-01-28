@@ -44,7 +44,11 @@ def api_error_klass():
 
 @pytest.fixture()
 def http_gateway_error():
-    return httpx.HTTPStatusError("502 Bad Gateway", request={}, response={})
+    return httpx.HTTPStatusError(
+        "502 Bad Gateway",
+        request=httpx.Request("POST", "/any-path"),
+        response=httpx.Response(502),
+    )
 
 
 @pytest.fixture
