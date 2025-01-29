@@ -148,29 +148,20 @@ class Patch(Manipulation):
 class Addition(Manipulation):
     """Class used to define objects to add to the original manifests."""
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.__called: Iterator[AnyResource] = iter(())
-
     def __call__(self) -> Union[None, AnyResource, Iterable[AnyResource]]:
         """Method called to optionally create an object."""
         ...
 
-    def __iter__(self) -> "Addition":
+    def __iter__(self) -> Iterator[AnyResource]:
         """Treat every addition like a possible collection."""
         obj = self()
         if obj is None:
-            self.__called = iter(())
+            return iter(())
         else:
             try:
-                self.__called = iter(obj)
+                return iter(obj)
             except TypeError:
-                self.__called = iter((obj,))
-        return self
-
-    def __next__(self) -> AnyResource:
-        """Return the next element in the collection."""
-        return next(self.__called)
+                return iter((obj,))
 
 
 class Subtraction(Manipulation):
