@@ -23,4 +23,5 @@ __all__ = [
     "update_tolerations",
     "SubtractEq",
     "ManifestClientError",
+    "update_tolerations",
 ]
