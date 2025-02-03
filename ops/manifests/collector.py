@@ -1,12 +1,17 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import logging
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Iterable, List, Mapping, MutableMapping, Optional, Tuple
 
+import ops
+
 from .manifest import Manifests
 from .manipulations import AnyCondition, HashableResource
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -38,6 +43,7 @@ class Collector:
                     self.on.list_versions_action,
                     self.collector.list_versions
                 )
+
         """
         d = {manifest.name: manifest for manifest in manifests}
         self.manifests = OrderedDict(sorted(d.items(), key=lambda x: x[0]))
@@ -50,22 +56,18 @@ class Collector:
         }
         event.set_results(result)
 
-    def list_resources(self, event, manifests: Optional[str], resources: Optional[str]):
-        """List available, extra, and missing resources for each manifest."""
-        self._list_resources(event, manifests, resources)
-
     def scrub_resources(self, event, manifests: Optional[str], resources: Optional[str]):
         """Remove extra resources installed by each manifest.
 
         Uses the list_resource analysis to determine the extra resource
         then delete those resources.
         """
-        results = self._list_resources(event, manifests, resources)
+        results = self.list_resources(event, manifests, resources)
         for name, analysis in results.items():
             if analysis.extra:
                 event.log(f"Removing {','.join(str(_) for _ in analysis.extra)}")
                 self.manifests[name].delete_resources(*analysis.extra)
-        self._list_resources(event, manifests, resources)
+        self.list_resources(event, manifests, resources)
 
     def apply_missing_resources(self, event, manifests: Optional[str], resources: Optional[str]):
         """Applies manifest resources that are missing from the cluster
@@ -73,12 +75,12 @@ class Collector:
         Uses the list_resource analysis to determine the missing resources
         then applies those resources.
         """
-        results = self._list_resources(event, manifests, resources)
+        results = self.list_resources(event, manifests, resources)
         for name, analysis in results.items():
             if analysis.missing:
                 event.log(f"Applying {','.join(str(_) for _ in analysis.missing)}")
                 self.manifests[name].apply_resources(*analysis.missing)
-        self._list_resources(event, manifests, resources)
+        self.list_resources(event, manifests, resources)
 
     @property
     def unready(self) -> List[str]:
@@ -132,20 +134,21 @@ class Collector:
             f"{app}={c.current_release}" for app, c in self.manifests.items()
         )
 
-    def _list_resources(
-        self, event, manifests: Optional[str], resources: Optional[str]
+    def list_resources(
+        self, event: ops.EventBase, manifests: Optional[str], resources: Optional[str]
     ) -> Mapping[str, _ResourceAnalysis]:
         filter_manifests = manifests.split() if manifests else []
         filter_resources = resources.split() if resources else []
+        log = event.log if isinstance(event, ops.ActionEvent) else logger.info
 
         man_filter = set(_.lower() for _ in filter_manifests)
         if man_filter:
-            event.log(f"Filter manifest listings with {man_filter}")
+            log(f"Filter manifest listings with {man_filter}")
         man_filter = man_filter or set(self.manifests.keys())
 
         res_filter = set(_.lower() for _ in filter_resources)
         if res_filter:
-            event.log(f"Filter resource listing with {res_filter}")
+            log(f"Filter resource listing with {res_filter}")
 
         def kind_filter(rsc: HashableResource) -> bool:
             return not res_filter or rsc.kind.lower() in res_filter
@@ -175,5 +178,6 @@ class Collector:
             )
 
         event_result = {k: v for k, v in event_result.items() if v}
-        event.set_results(event_result)
+        if isinstance(event, ops.ActionEvent):
+            event.set_results(event_result)
         return results
