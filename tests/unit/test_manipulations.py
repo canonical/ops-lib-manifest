@@ -53,8 +53,7 @@ def test_config_registry_of_pod(caplog):
     assert obj.spec.containers[0].image == f"{rocks}/awesome/image:1.0"
     assert obj.spec.containers[1].image == f"{rocks}/other/image:2.0"
     assert caplog.messages == [
-        "Replacing Image: mcr.microsoft.com/awesome/image:1.0 with "
-        f"{rocks}/awesome/image:1.0",
+        f"Replacing Image: mcr.microsoft.com/awesome/image:1.0 with {rocks}/awesome/image:1.0",
         f"Replacing Image: gcr.io/other/image:2.0 with {rocks}/other/image:2.0",
     ]
 
@@ -78,8 +77,7 @@ def test_config_registry_of_daemonset():
         == "rocks.canonical.com:443/cdk/awesome/image:1.0"
     )
     assert (
-        obj.spec.template.spec.containers[1].image
-        == "rocks.canonical.com:443/cdk/other/image:2.0"
+        obj.spec.template.spec.containers[1].image == "rocks.canonical.com:443/cdk/other/image:2.0"
     )
 
 
@@ -90,9 +88,7 @@ def test_config_registry_pod_with_init_container():
     c1 = dict(name="cool-pod", image="mcr.microsoft.com/awesome/image:1.0")
     c2 = dict(name="other-pod", image="gcr.io/other/image:2.0")
     obj = from_dict(
-        dict(
-            apiVersion="v1", kind="Pod", spec=dict(containers=[c1], initContainers=[c2])
-        )
+        dict(apiVersion="v1", kind="Pod", spec=dict(containers=[c1], initContainers=[c2]))
     )
 
     adjustment = ConfigRegistry(manifest)
@@ -123,18 +119,16 @@ def test_manifest_label(manifest):
 
     assert obj.metadata, "Should have metadata"
     assert obj.metadata.labels, "Should have labels"
-    assert (
-        obj.metadata.labels["pre-existing"] == "label"
-    ), "Should leave existing labels alone"
-    assert (
-        obj.metadata.labels["juju.io/application"] == "unit-testing"
-    ), "Should add the application label"
-    assert (
-        obj.metadata.labels["juju.io/manifest"] == "test-manifest"
-    ), "Should add the manifest name"
-    assert (
-        obj.metadata.labels["juju.io/manifest-version"] == "test-manifest-v0.2"
-    ), "Should add the manifest label with current-version"
+    assert obj.metadata.labels["pre-existing"] == "label", "Should leave existing labels alone"
+    assert obj.metadata.labels["juju.io/application"] == "unit-testing", (
+        "Should add the application label"
+    )
+    assert obj.metadata.labels["juju.io/manifest"] == "test-manifest", (
+        "Should add the manifest name"
+    )
+    assert obj.metadata.labels["juju.io/manifest-version"] == "test-manifest-v0.2", (
+        "Should add the manifest label with current-version"
+    )
 
 
 def test_update_pod_toleration():
@@ -144,18 +138,14 @@ def test_update_pod_toleration():
         tolerations.append(tolerations[0])  # duplicate the second just to test dedupe
         return tolerations
 
-    t1 = dict(
-        key="node-role.kubernetes.io/not-ready", operator="Exists", effect="NoSchedule"
-    )
+    t1 = dict(key="node-role.kubernetes.io/not-ready", operator="Exists", effect="NoSchedule")
     t2 = dict(
         key="node-role.kubernetes.io/unreachable",
         operator="Exists",
         effect="NoSchedule",
     )
     obj = from_dict(
-        dict(
-            apiVersion="v1", kind="Pod", spec=dict(tolerations=[t1, t2], containers=[])
-        )
+        dict(apiVersion="v1", kind="Pod", spec=dict(tolerations=[t1, t2], containers=[]))
     )
 
     update_tolerations(obj, adjuster)
@@ -171,9 +161,7 @@ def test_update_deployment_toleration():
         tolerations.append(tolerations[0])  # duplicate the second to test de-dupe
         return tolerations
 
-    t1 = dict(
-        key="node-role.kubernetes.io/not-ready", operator="Exists", effect="NoSchedule"
-    )
+    t1 = dict(key="node-role.kubernetes.io/not-ready", operator="Exists", effect="NoSchedule")
     t2 = dict(
         key="node-role.kubernetes.io/unreachable",
         operator="Exists",
@@ -186,9 +174,7 @@ def test_update_deployment_toleration():
     obj = from_dict(dict(apiVersion="apps/v1", kind="DaemonSet", spec=spec))
     update_tolerations(obj, adjuster)
 
-    assert (
-        len(obj.spec.template.spec.tolerations) == 1
-    ), "The first toleration should be removed"
+    assert len(obj.spec.template.spec.tolerations) == 1, "The first toleration should be removed"
     assert obj.spec.template.spec.tolerations[0].key == "something.else/unreachable"
 
 

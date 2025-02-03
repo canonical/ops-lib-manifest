@@ -6,18 +6,16 @@ import httpx
 import pytest
 from lightkube import ApiError
 from lightkube.codecs import from_dict
-from ops.charm import CharmBase
-from ops.testing import Harness
 
+from ops.charm import CharmBase
 from ops.manifests import Manifests
 from ops.manifests.manipulations import ConfigRegistry, ManifestLabel, SubtractEq
+from ops.testing import Harness
 
 
 @pytest.fixture
 def mock_load_in_cluster_generic_resources():
-    with mock.patch(
-        "ops.manifests.manifest.load_in_cluster_generic_resources"
-    ) as the_mock:
+    with mock.patch("ops.manifests.manifest.load_in_cluster_generic_resources") as the_mock:
         yield the_mock
 
 
@@ -26,9 +24,7 @@ def lk_client(mock_load_in_cluster_generic_resources):
     with mock.patch("ops.manifests.manifest.Client", autospec=True) as mock_lightkube:
         yield mock_lightkube.return_value
     if mock_load_in_cluster_generic_resources.called:
-        mock_load_in_cluster_generic_resources.assert_called_with(
-            mock_lightkube.return_value
-        )
+        mock_load_in_cluster_generic_resources.assert_called_with(mock_lightkube.return_value)
 
 
 @pytest.fixture()
