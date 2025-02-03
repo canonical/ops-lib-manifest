@@ -13,6 +13,7 @@ from typing import (
     Mapping,
     Optional,
     Union,
+    cast,
 )
 
 from lightkube import codecs
@@ -161,6 +162,7 @@ class Addition(Manipulation):
             try:
                 return iter(obj)
             except TypeError:
+                obj = cast(AnyResource, obj)
                 return iter((obj,))
 
 
@@ -288,9 +290,7 @@ def update_tolerations(obj: AnyResource, adjuster: TolerationAdjuster):
 
     if spec:
         updated = list(
-            _unique(
-                adjuster(spec.tolerations), key=lambda t: tuple(t.to_dict().values())
-            )
+            _unique(adjuster(spec.tolerations), key=lambda t: tuple(t.to_dict().values()))
         )
         log.info(f"Applying tolerations {updated} to {HashableResource(obj)}")
         spec.tolerations = updated

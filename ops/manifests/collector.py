@@ -54,9 +54,7 @@ class Collector:
         """List available, extra, and missing resources for each manifest."""
         self._list_resources(event, manifests, resources)
 
-    def scrub_resources(
-        self, event, manifests: Optional[str], resources: Optional[str]
-    ):
+    def scrub_resources(self, event, manifests: Optional[str], resources: Optional[str]):
         """Remove extra resources installed by each manifest.
 
         Uses the list_resource analysis to determine the extra resource
@@ -69,9 +67,7 @@ class Collector:
                 self.manifests[name].delete_resources(*analysis.extra)
         self._list_resources(event, manifests, resources)
 
-    def apply_missing_resources(
-        self, event, manifests: Optional[str], resources: Optional[str]
-    ):
+    def apply_missing_resources(self, event, manifests: Optional[str], resources: Optional[str]):
         """Applies manifest resources that are missing from the cluster
 
         Uses the list_resource analysis to determine the missing resources

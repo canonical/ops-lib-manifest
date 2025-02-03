@@ -61,7 +61,7 @@ def test_collector_list_manifest_filter(manifest):
     event.set_results.assert_called_once_with({})
 
 
-@mock.patch("ops.manifests.collector.Collector.list_resources")
+@mock.patch("ops.manifests.collector.Collector._list_resources")
 def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
     resource = HashableResource(
         codecs.from_dict(
@@ -87,7 +87,7 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
     mock_delete.assert_called_once_with(resource, None, False)
 
 
-@mock.patch("ops.manifests.collector.Collector.list_resources")
+@mock.patch("ops.manifests.collector.Collector._list_resources")
 def test_collector_install_missing_resources(mock_list_resources, manifest, lk_client, caplog):
     resource = codecs.from_dict(
         dict(
