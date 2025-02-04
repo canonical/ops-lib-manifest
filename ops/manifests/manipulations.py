@@ -21,6 +21,8 @@ from lightkube.generic_resource import GenericGlobalResource, GenericNamespacedR
 from lightkube.models.core_v1 import Toleration
 from lightkube.models.meta_v1 import Time
 
+import ops.manifests.literals as literals
+
 AnyResource = Union[GenericGlobalResource, GenericNamespacedResource]
 
 if TYPE_CHECKING:
@@ -209,9 +211,9 @@ class ManifestLabel(Patch):
         if obj.metadata:
             version = self.manifests.current_release
             labels = {
-                "juju.io/application": self.manifests.model.app.name,
-                "juju.io/manifest": self.manifests.name,
-                "juju.io/manifest-version": f"{self.manifests.name}-{version}",
+                literals.APP_LABEL: self.manifests.model.app.name,
+                literals.MANIFEST_LABEL: self.manifests.name,
+                literals.MANIFEST_VERSION_LABEL: f"{self.manifests.name}-{version}",
             }
             if isinstance(obj, (GenericGlobalResource, GenericNamespacedResource)):
                 # Custom resources in lightkube are built differently

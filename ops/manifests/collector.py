@@ -15,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class _ResourceAnalysis:
+class ResourceAnalysis:
+    """Analysis of resources installed in the cluster."""
+
+    manifest: str
+    conflicting: Iterable[HashableResource] = frozenset()
     correct: Iterable[HashableResource] = frozenset()
     extra: Iterable[HashableResource] = frozenset()
     missing: Iterable[HashableResource] = frozenset()
@@ -62,11 +66,10 @@ class Collector:
         Uses the list_resource analysis to determine the extra resource
         then delete those resources.
         """
-        results = self.list_resources(event, manifests, resources)
-        for name, analysis in results.items():
+        for analysis in self.list_resources(event, manifests, resources):
             if analysis.extra:
                 event.log(f"Removing {','.join(str(_) for _ in analysis.extra)}")
-                self.manifests[name].delete_resources(*analysis.extra)
+                self.manifests[analysis.manifest].delete_resources(*analysis.extra)
         self.list_resources(event, manifests, resources)
 
     def apply_missing_resources(self, event, manifests: Optional[str], resources: Optional[str]):
@@ -75,11 +78,10 @@ class Collector:
         Uses the list_resource analysis to determine the missing resources
         then applies those resources.
         """
-        results = self.list_resources(event, manifests, resources)
-        for name, analysis in results.items():
+        for analysis in self.list_resources(event, manifests, resources):
             if analysis.missing:
                 event.log(f"Applying {','.join(str(_) for _ in analysis.missing)}")
-                self.manifests[name].apply_resources(*analysis.missing)
+                self.manifests[analysis.manifest].apply_resources(*analysis.missing)
         self.list_resources(event, manifests, resources)
 
     @property
@@ -136,7 +138,18 @@ class Collector:
 
     def list_resources(
         self, event: ops.EventBase, manifests: Optional[str], resources: Optional[str]
-    ) -> Mapping[str, _ResourceAnalysis]:
+    ) -> List[ResourceAnalysis]:
+        """Analyze resources installed in the cluster.
+
+        Args:
+            event: The event object that triggered the action.
+            manifests: A space-separated list of manifests to filter.
+            resources: A space-separated list of resources to filter.
+
+        Returns:
+            A list of ResourceAnalysis objects.
+        """
+
         filter_manifests = manifests.split() if manifests else []
         filter_resources = resources.split() if resources else []
         log = event.log if isinstance(event, ops.ActionEvent) else logger.info
@@ -153,27 +166,38 @@ class Collector:
         def kind_filter(rsc: HashableResource) -> bool:
             return not res_filter or rsc.kind.lower() in res_filter
 
-        results: MutableMapping[str, _ResourceAnalysis] = {}
+        results: List[ResourceAnalysis] = []
         event_result: MutableMapping[str, str] = {}
         for name, manifest in self.manifests.items():
             if name not in man_filter:
-                results[name] = _ResourceAnalysis()
+                results.append(ResourceAnalysis(name))
                 continue
 
             labelled = manifest.labelled_resources()
             expected = manifest.resources
             installed = manifest.installed_resources()
+            conflicting = manifest.conflicting_resources(installed)
 
-            analyses = [expected & installed, labelled - expected, expected - installed]
+            analyses = [
+                # kubernetes resources which are installed by another manifest
+                conflicting,
+                # expected kubernetes resources which are both installed and not conflicting
+                expected & (installed - conflicting),
+                # kubernetes resources labelled by this manifest but are not expected
+                labelled - expected,
+                # kubernetes resources expected by this manifest which are not installed
+                expected - (installed - conflicting),
+            ]
             analyses = [frozenset(filter(kind_filter, cws)) for cws in analyses]
-            correct, extra, missing = analyses
+            conflicting, correct, extra, missing = analyses
 
-            results[name] = _ResourceAnalysis(correct, extra, missing)
+            results.append(ResourceAnalysis(name, conflicting, correct, extra, missing))
             event_result.update(
                 {
                     f"{name}-correct": "\n".join(sorted(str(_) for _ in correct)),
                     f"{name}-extra": "\n".join(sorted(str(_) for _ in extra)),
                     f"{name}-missing": "\n".join(sorted(str(_) for _ in missing)),
+                    f"{name}-conflicting": "\n".join(sorted(str(_) for _ in conflicting)),
                 }
             )
 

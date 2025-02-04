@@ -4,6 +4,7 @@ import unittest.mock as mock
 from collections import namedtuple
 
 import lightkube.codecs as codecs
+from lightkube.resources.storage_v1 import StorageClass
 
 import ops
 from ops.manifests.collector import Collector
@@ -27,25 +28,97 @@ def test_collector_long_version(manifest):
     assert collector.long_version == "Versions: test-manifest=v0.2"
 
 
-def test_collector_list_resources_all(manifest):
+def responder(resp_by_name):
+    def _respond(klass, name, namespace=None):
+        response = resp_by_name.get(name, lambda r: r)
+        obj = mock.MagicMock(spec=klass)
+        obj.kind = klass.__name__
+        obj.metadata.name = name
+        obj.metadata.namespace = namespace
+        return response(obj)
+
+    return _respond
+
+
+def test_collector_list_resources_all(manifest, lk_client, api_error_klass):
+    def label_correct(r):
+        r.metadata.labels = {
+            "juju.io/manifest": manifest.name,
+            "juju.io/application": manifest.model.app.name,
+        }
+        return r
+
+    def label_conflict(r):
+        r.metadata.labels = {
+            "juju.io/manifest": manifest.name,
+            "juju.io/application": manifest.model.app.name + "-conflict",
+        }
+        return r
+
+    def raise_not_found(r):
+        not_found = api_error_klass()
+        not_found.status.code = 404
+        not_found.status.message = f"{r.kind} Not Found"
+        raise not_found
+
+    resp_by_name = {
+        "test-manifest-crd": label_correct,
+        "test-manifest-deployment": label_correct,
+        "test-manifest-secret": raise_not_found,
+        "test-manifest-manager": label_conflict,
+        "test-storage-class": label_correct,
+    }
+    extra_resource = responder(resp_by_name)(StorageClass, "test-storage-class")
+    lk_client.list.return_value = [extra_resource]
+    lk_client.get.side_effect = responder(resp_by_name)
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
-    collector.list_resources(event, None, None)
+    (analysis,) = collector.list_resources(event, None, None)
     event.set_results.assert_called_once_with(
         {
-            "test-manifest-missing": "\n".join(
+            "test-manifest-correct": "\n".join(
                 [
                     "CustomResourceDefinition/test-manifest-crd",
                     "Deployment/kube-system/test-manifest-deployment",
+                ]
+            ),
+            "test-manifest-extra": "StorageClass/test-storage-class",
+            "test-manifest-missing": "\n".join(
+                [
                     "Secret/kube-system/test-manifest-secret",
                     "ServiceAccount/kube-system/test-manifest-manager",
                 ]
-            )
+            ),
+            "test-manifest-conflicting": "ServiceAccount/kube-system/test-manifest-manager",
         }
     )
 
+    """
+    Note: 
 
-def test_collector_list_kind_filter(manifest):
+    There is a missing ServiceAccount and there is also a conflicting ServiceAccount.
+    The conflicting ServiceAccount is not labeled correctly, so it is not considered part of the manifest.
+
+    This is a different situation from the missing Secret, which is not found at all.
+    """
+    assert analysis.manifest == manifest.name
+    assert len(analysis.conflicting) == 1
+    assert len(analysis.correct) == 2
+    assert len(analysis.missing) == 2
+    assert len(analysis.extra) == 1
+
+
+def test_collector_list_kind_filter(manifest, lk_client, api_error_klass):
+    def raise_not_found(r):
+        not_found = api_error_klass()
+        not_found.status.code = 404
+        not_found.status.message = f"{r.kind} Not Found"
+        raise not_found
+
+    resp_by_name = {
+        "test-manifest-deployment": raise_not_found,
+    }
+    lk_client.get.side_effect = responder(resp_by_name)
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     collector.list_resources(event, None, "deployment")
@@ -72,9 +145,9 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
             )
         )
     )
-    analysis = mock.MagicMock()
+    analysis = ops.manifests.collector.ResourceAnalysis("test-manifest")
     analysis.extra = {resource}
-    mock_list_resources.return_value = {"test-manifest": analysis}
+    mock_list_resources.return_value = [analysis]
 
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
@@ -96,9 +169,9 @@ def test_collector_install_missing_resources(mock_list_resources, manifest, lk_c
             metadata=dict(name="install-me-im-missing"),
         )
     )
-    analysis = mock.MagicMock()
+    analysis = ops.manifests.collector.ResourceAnalysis("test-manifest")
     analysis.missing = {HashableResource(resource)}
-    mock_list_resources.return_value = {"test-manifest": analysis}
+    mock_list_resources.return_value = [analysis]
 
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)

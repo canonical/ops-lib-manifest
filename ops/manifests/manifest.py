@@ -30,6 +30,7 @@ from lightkube.generic_resource import (
     load_in_cluster_generic_resources,
 )
 
+import ops.manifests.literals as literals
 from ops.model import Model
 
 from .exceptions import ManifestClientError
@@ -286,6 +287,22 @@ class Manifests:
             result[HashableResource(next_rsc)] = None
         return frozenset(result.keys())
 
+    @no_type_check
+    def conflicting_resources(
+        self, installed: FrozenSet[HashableResource]
+    ) -> FrozenSet[HashableResource]:
+        """Isolate currently installed resources not installed by this manifest."""
+        result: Dict[HashableResource, None] = OrderedDict()
+        for obj in installed:
+            if not obj.resource.metadata or not obj.resource.metadata.labels:
+                result[obj] = None
+                continue
+            app = obj.resource.metadata.labels.get(literals.APP_LABEL)
+            manifest = obj.resource.metadata.labels.get(literals.MANIFEST_LABEL)
+            if app != self.model.app.name or manifest != self.name:
+                result[obj] = None
+        return frozenset(result.keys())
+
     def labelled_resources(self) -> FrozenSet[HashableResource]:
         """Any resource ever installed and labeled by this class."""
         NamespaceKind = namedtuple("NamespaceKind", "namespace, kind")
@@ -298,8 +315,8 @@ class Manifests:
                 ns_kind.kind,
                 namespace=ns_kind.namespace,
                 labels={
-                    "juju.io/application": self.model.app.name,
-                    "juju.io/manifest": self.name,
+                    literals.APP_LABEL: self.model.app.name,
+                    literals.MANIFEST_LABEL: self.name,
                 },
             )
         )
@@ -364,8 +381,8 @@ class Manifests:
                 type(obj.resource),
                 namespace=namespace,
                 labels={
-                    "juju.io/application": self.model.app.name,
-                    "juju.io/manifest": self.name,
+                    literals.APP_LABEL: self.model.app.name,
+                    literals.MANIFEST_LABEL: self.name,
                 },
                 fields={"metadata.name": obj.name},
             ):
