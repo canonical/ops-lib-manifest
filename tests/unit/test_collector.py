@@ -5,6 +5,7 @@ from collections import namedtuple
 
 import lightkube.codecs as codecs
 
+import ops
 from ops.manifests.collector import Collector
 from ops.manifests.manifest import HashableResource
 
@@ -13,9 +14,7 @@ def test_collector_list_versions(manifest):
     event = mock.MagicMock()
     collector = Collector(manifest)
     collector.list_versions(event)
-    event.set_results.assert_called_once_with(
-        {"test-manifest-versions": "v0.3.1\nv0.2"}
-    )
+    event.set_results.assert_called_once_with({"test-manifest-versions": "v0.3.1\nv0.2"})
 
 
 def test_collector_short_version(manifest):
@@ -29,7 +28,7 @@ def test_collector_long_version(manifest):
 
 
 def test_collector_list_resources_all(manifest):
-    event = mock.MagicMock()
+    event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     collector.list_resources(event, None, None)
     event.set_results.assert_called_once_with(
@@ -47,7 +46,7 @@ def test_collector_list_resources_all(manifest):
 
 
 def test_collector_list_kind_filter(manifest):
-    event = mock.MagicMock()
+    event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     collector.list_resources(event, None, "deployment")
     event.set_results.assert_called_once_with(
@@ -56,7 +55,7 @@ def test_collector_list_kind_filter(manifest):
 
 
 def test_collector_list_manifest_filter(manifest):
-    event = mock.MagicMock()
+    event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     collector.list_resources(event, "garbage", None)
     event.set_results.assert_called_once_with({})
@@ -77,7 +76,7 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
     analysis.extra = {resource}
     mock_list_resources.return_value = {"test-manifest": analysis}
 
-    event = mock.MagicMock()
+    event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     with mock.patch.object(manifest, "_delete") as mock_delete:
         collector.scrub_resources(event, None, None)
@@ -89,9 +88,7 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
 
 
 @mock.patch("ops.manifests.collector.Collector._list_resources")
-def test_collector_install_missing_resources(
-    mock_list_resources, manifest, lk_client, caplog
-):
+def test_collector_install_missing_resources(mock_list_resources, manifest, lk_client, caplog):
     resource = codecs.from_dict(
         dict(
             apiVersion="v1",
@@ -103,7 +100,7 @@ def test_collector_install_missing_resources(
     analysis.missing = {HashableResource(resource)}
     mock_list_resources.return_value = {"test-manifest": analysis}
 
-    event = mock.MagicMock()
+    event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     collector.apply_missing_resources(event, None, None)
 

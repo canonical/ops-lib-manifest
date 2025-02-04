@@ -31,7 +31,7 @@ def test_hashable_resource(namespace):
     rsc_obj.metadata.name = "test-resource"
     rsc_obj.metadata.namespace = namespace
     hr = HashableResource(rsc_obj)
-    assert str(hr) == f"{kind}/{namespace+'/' if namespace else ''}test-resource"
+    assert str(hr) == f"{kind}/{namespace + '/' if namespace else ''}test-resource"
 
     hr2 = HashableResource(rsc_obj)
     assert hr == hr2
@@ -53,9 +53,7 @@ def test_manifest_without_config():
 
 
 def test_releases(manifest):
-    assert (
-        manifest.default_release == "v0.2"
-    )  # as defined by tests/data/mock_manifests/version
+    assert manifest.default_release == "v0.2"  # as defined by tests/data/mock_manifests/version
     assert (
         manifest.latest_release == "v0.3.1"
     )  # as defined by tests/data/mock_manifests sort order
@@ -64,9 +62,7 @@ def test_releases(manifest):
 
 def test_current_release(manifest):
     manifest.data["release"] = None
-    assert (
-        manifest.current_release == "v0.2"
-    )  # as defined by tests/data/mock_manifests/version
+    assert manifest.current_release == "v0.2"  # as defined by tests/data/mock_manifests/version
 
     manifest.data["release"] = "v0.1"
     assert manifest.current_release == "v0.1"  # as defined by config
@@ -81,9 +77,9 @@ def test_current_release(manifest):
 def test_resources_version(manifest, release, uniqs):
     manifest.data["release"] = release
     rscs = manifest.resources
-    assert (
-        len(rscs) == uniqs
-    ), f"{uniqs} unique namespace kind resources in {manifest.current_release}"
+    assert len(rscs) == uniqs, (
+        f"{uniqs} unique namespace kind resources in {manifest.current_release}"
+    )
     if uniqs < 1:
         return
 
@@ -216,9 +212,7 @@ def test_installed_resources_api_error(manifest, lk_client, api_error_klass):
 
 
 def test_installed_resources_http_error(manifest, lk_client, http_gateway_error):
-    with mock.patch.object(
-        lk_client, "get", side_effect=http_gateway_error
-    ) as mock_get:
+    with mock.patch.object(lk_client, "get", side_effect=http_gateway_error) as mock_get:
         rscs = manifest.installed_resources()
     assert mock_get.call_count == 4
     assert len(rscs) == 0, "No resources expected to be installed."
@@ -315,9 +309,7 @@ def test_delete_resource_errors(manifest, api_error_klass, caplog, status):
 
     with mock.patch.object(manifest, "_delete") as mock_delete:
         mock_delete.side_effect = api_error_klass
-        manifest.delete_resource(
-            element, ignore_unauthorized=True, ignore_not_found=True
-        )
+        manifest.delete_resource(element, ignore_unauthorized=True, ignore_not_found=True)
 
     mock_delete.assert_called_once_with(element, "kube-system", False)
     obj = "Secret/kube-system/test-manifest-secret"
@@ -339,13 +331,9 @@ def test_delete_resource_api_error(manifest, api_error_klass, caplog, status):
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     api_error_klass.status.message = status
 
-    with mock.patch.object(
-        manifest, "_delete", side_effect=api_error_klass
-    ) as mock_delete:
+    with mock.patch.object(manifest, "_delete", side_effect=api_error_klass) as mock_delete:
         with pytest.raises(ManifestClientError):
-            manifest.delete_resource(
-                element, ignore_unauthorized=True, ignore_not_found=True
-            )
+            manifest.delete_resource(element, ignore_unauthorized=True, ignore_not_found=True)
     mock_delete.assert_called_once_with(element, "kube-system", False)
     obj = "Secret/kube-system/test-manifest-secret"
     assert caplog.messages[0] == f"Deleting {obj}..."
@@ -356,13 +344,9 @@ def test_delete_resource_http_error(manifest, http_gateway_error, caplog):
     rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
 
-    with mock.patch.object(
-        manifest, "_delete", side_effect=http_gateway_error
-    ) as mock_delete:
+    with mock.patch.object(manifest, "_delete", side_effect=http_gateway_error) as mock_delete:
         with pytest.raises(ManifestClientError):
-            manifest.delete_resource(
-                element, ignore_unauthorized=True, ignore_not_found=True
-            )
+            manifest.delete_resource(element, ignore_unauthorized=True, ignore_not_found=True)
     mock_delete.assert_called_once_with(element, "kube-system", False)
     obj = "Secret/kube-system/test-manifest-secret"
     assert caplog.messages[0] == f"Deleting {obj}..."
@@ -388,9 +372,7 @@ def test_non_dictionary_resource(tmp_manifests, caplog):
         fp.write("non-yaml")
         fp.flush()
         assert not tmp_manifests.resources
-    assert caplog.messages == [
-        f"Ignoring non-dictionary resource rsc='non-yaml' in {fp.name}"
-    ]
+    assert caplog.messages == [f"Ignoring non-dictionary resource rsc='non-yaml' in {fp.name}"]
 
 
 def test_non_kubernetes_resource(tmp_manifests, caplog):
@@ -401,9 +383,7 @@ def test_non_kubernetes_resource(tmp_manifests, caplog):
         fp.flush()
         assert not tmp_manifests.resources
     rsc = "{'kind': 'Missing apiVersion'}"
-    assert caplog.messages == [
-        f"Ignoring non-kubernetes resource rsc='{rsc}' in {fp.name}"
-    ]
+    assert caplog.messages == [f"Ignoring non-kubernetes resource rsc='{rsc}' in {fp.name}"]
 
 
 def test_nested_kubernetes_resource(tmp_manifests, caplog):

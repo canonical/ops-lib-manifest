@@ -1,3 +1,55 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "ops.manifest"
+version = "1.4.0"
+description = "Kubernetes manifests for Operators"
+readme = "README.md"
+requires-python = ">3.8"
+license = { text = "Apache" }
+authors = [
+    { name= "Adam Dyess", email = "adam.dyess@canonical.com" }
+]
+dependencies = [
+    "ops",
+    "lightkube"
+]
+keywords = [
+    "juju",
+    "charming",
+    "kubernetes",
+    "operators",
+    "manifests",
+    "yaml"
+]
+classifiers = [
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12"
+]
+
+[project.urls]
+Repository = "https://github.com/canonical/ops-lib-manifest"
+BugTracker = "https://github.com/canonical/ops-lib-manifest/issues"
+
+[tool.isort]
+line_length = 99
+profile = "black"
+
+[tool.ruff]
+line-length = 99
+target-version = "py38"
+
+[tool.setuptools]
+zip-safe = true
+
+[tool.setuptools.packages.find]
+namespaces = true
+

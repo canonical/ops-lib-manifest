@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from collections import OrderedDict, namedtuple
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import (
     Dict,
@@ -21,7 +21,6 @@ from typing import (
 )
 
 import yaml
-from backports.cached_property import cached_property
 from httpx import HTTPError
 from lightkube import Client, codecs
 from lightkube.codecs import AnyResource
@@ -30,6 +29,7 @@ from lightkube.generic_resource import (
     create_resources_from_crd,
     load_in_cluster_generic_resources,
 )
+
 from ops.model import Model
 
 from .exceptions import ManifestClientError
@@ -183,9 +183,7 @@ class Manifests:
         # Generate Static resources
         release_path = Path(self.manifest_path / self.current_release)
         ymls = sorted(
-            manifests
-            for ext in FILE_TYPES
-            for manifests in release_path.glob(f"*.{ext}")
+            manifests for ext in FILE_TYPES for manifests in release_path.glob(f"*.{ext}")
         )
         statics = [rsc for yml in ymls for rsc in self._resource_from_yaml(yml)]
 
@@ -201,9 +199,7 @@ class Manifests:
                 if isinstance(manipulate, Patch):
                     manipulate(rsc)
 
-        return OrderedDict(
-            (HashableResource(obj), None) for obj in all_resources
-        ).keys()
+        return OrderedDict((HashableResource(obj), None) for obj in all_resources).keys()
 
     def _resource_from_yaml(self, filepath: Path) -> List[AnyResource]:
         """Read manifest file and parse its contents into Lightkube Objects."""
@@ -233,13 +229,9 @@ class Manifests:
             for rsc in raw_resources:
                 if not isinstance(rsc, Mapping):
                     # found a non-dict item?  Let's log it
-                    log.warning(
-                        f"Ignoring non-dictionary resource rsc='{rsc}' in {filepath}"
-                    )
+                    log.warning(f"Ignoring non-dictionary resource rsc='{rsc}' in {filepath}")
                 elif not rsc.get("kind") or not rsc.get("apiVersion"):
-                    log.warning(
-                        f"Ignoring non-kubernetes resource rsc='{rsc}' in {filepath}"
-                    )
+                    log.warning(f"Ignoring non-kubernetes resource rsc='{rsc}' in {filepath}")
                 elif rsc["kind"].endswith("List"):
                     # found a "*List" kind -- lets _flatten all its "items"
                     resources += _flatten(rsc.get("items", []))
@@ -286,9 +278,7 @@ class Manifests:
                     namespace=obj.namespace,
                 )
             except ManifestClientError:
-                log.exception(
-                    f"Cannot connect to the api endpoint, marking ({obj}) as missing"
-                )
+                log.exception(f"Cannot connect to the api endpoint, marking ({obj}) as missing")
                 continue
             except (ApiError, HTTPError):
                 log.exception(f"Didn't find expected resource installed ({obj})")
@@ -299,9 +289,7 @@ class Manifests:
     def labelled_resources(self) -> FrozenSet[HashableResource]:
         """Any resource ever installed and labeled by this class."""
         NamespaceKind = namedtuple("NamespaceKind", "namespace, kind")
-        ns_kinds = set(
-            NamespaceKind(obj.namespace, type(obj.resource)) for obj in self.resources
-        )
+        ns_kinds = set(NamespaceKind(obj.namespace, type(obj.resource)) for obj in self.resources)
 
         return frozenset(
             HashableResource(rsc)
@@ -368,9 +356,7 @@ class Manifests:
                     raise ManifestClientError(log_msg) from ex
 
     @no_type_check
-    def _delete(
-        self, obj: HashableResource, namespace: Optional[str], ignore_labels: bool
-    ):
+    def _delete(self, obj: HashableResource, namespace: Optional[str], ignore_labels: bool):
         if ignore_labels:
             self.client.delete(type(obj.resource), obj.name, namespace=namespace)
         else:
