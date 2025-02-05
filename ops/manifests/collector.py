@@ -4,7 +4,7 @@
 import logging
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Iterable, List, Mapping, MutableMapping, Optional, Tuple
+from typing import FrozenSet, List, Mapping, MutableMapping, Optional, Tuple
 
 import ops
 
@@ -19,10 +19,10 @@ class ResourceAnalysis:
     """Analysis of resources installed in the cluster."""
 
     manifest: str
-    conflicting: Iterable[HashableResource] = frozenset()
-    correct: Iterable[HashableResource] = frozenset()
-    extra: Iterable[HashableResource] = frozenset()
-    missing: Iterable[HashableResource] = frozenset()
+    conflicting: FrozenSet[HashableResource] = frozenset()
+    correct: FrozenSet[HashableResource] = frozenset()
+    extra: FrozenSet[HashableResource] = frozenset()
+    missing: FrozenSet[HashableResource] = frozenset()
 
 
 class Collector:
