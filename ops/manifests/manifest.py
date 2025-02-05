@@ -287,20 +287,27 @@ class Manifests:
             result[HashableResource(next_rsc)] = None
         return frozenset(result.keys())
 
-    @no_type_check
     def conflicting_resources(
         self, installed: FrozenSet[HashableResource]
     ) -> FrozenSet[HashableResource]:
-        """Isolate currently installed resources not installed by this manifest."""
+        """Determine which currently installed resources were installed by this manifest.
+
+        Returns:
+            A set of resources that are expected to be installed by this
+            manifest but have been installed otherwise in the cluster.
+        """
         result: Dict[HashableResource, None] = OrderedDict()
+        expected = self.resources
         for obj in installed:
-            if not obj.resource.metadata or not obj.resource.metadata.labels:
-                result[obj] = None
-                continue
-            app = obj.resource.metadata.labels.get(literals.APP_LABEL)
-            manifest = obj.resource.metadata.labels.get(literals.MANIFEST_LABEL)
-            if app != self.model.app.name or manifest != self.name:
-                result[obj] = None
+            if match := next((m for m in expected if m == obj), None):
+                compare = obj, match
+                app, match_app = (_.labels.get(literals.APP_LABEL) for _ in compare)
+                name, match_name = (_.labels.get(literals.MANIFEST_LABEL) for _ in compare)
+                if app != match_app or name != match_name:
+                    result[match] = None
+            else:
+                raise ManifestClientError(f"Unexpected resource installed: {obj}")
+
         return frozenset(result.keys())
 
     def labelled_resources(self) -> FrozenSet[HashableResource]:

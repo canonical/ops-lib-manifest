@@ -110,12 +110,17 @@ class HashableResource:
     @property
     def namespace(self) -> Optional[str]:
         """Return the resource's namespace."""
-        return self.resource.metadata.namespace if self.resource.metadata else None
+        return self.resource.metadata and self.resource.metadata.namespace or None
 
     @property
     def name(self) -> Optional[str]:
         """Return the resource's name."""
-        return self.resource.metadata.name if self.resource.metadata else None
+        return self.resource.metadata and self.resource.metadata.name or None
+
+    @property
+    def labels(self) -> Mapping[str, str]:
+        """Return the resource's labels."""
+        return self.resource.metadata and self.resource.metadata.labels or {}
 
     def __str__(self):
         """String version of the unique parts.
