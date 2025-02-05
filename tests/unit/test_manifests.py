@@ -321,12 +321,14 @@ def test_delete_one_resource(manifest, caplog):
 
 
 def test_delete_current_resources(manifest, caplog):
-    with mock.patch.object(manifest, "_delete") as mock_delete:
-        manifest.delete_manifests()
+    rscs = manifest.resources
+    with mock.patch.object(manifest, "labelled_resources") as labelled:
+        labelled.return_value = rscs
+        with mock.patch.object(manifest, "_delete") as mock_delete:
+            manifest.delete_manifests()
     assert len(caplog.messages) == 4, "Should delete the 4 resources in this release"
     assert all(msg.startswith("Deleting") for msg in caplog.messages)
 
-    rscs = manifest.resources
     element = next(rsc for rsc in rscs if rsc.kind == "Secret")
     mock_delete.assert_any_call(element, "kube-system", False)
 
