@@ -21,6 +21,8 @@ from lightkube.generic_resource import GenericGlobalResource, GenericNamespacedR
 from lightkube.models.core_v1 import Toleration
 from lightkube.models.meta_v1 import Time
 
+import ops.manifests.literals as literals
+
 AnyResource = Union[GenericGlobalResource, GenericNamespacedResource]
 
 if TYPE_CHECKING:
@@ -108,12 +110,17 @@ class HashableResource:
     @property
     def namespace(self) -> Optional[str]:
         """Return the resource's namespace."""
-        return self.resource.metadata.namespace if self.resource.metadata else None
+        return self.resource.metadata and self.resource.metadata.namespace or None
 
     @property
     def name(self) -> Optional[str]:
         """Return the resource's name."""
-        return self.resource.metadata.name if self.resource.metadata else None
+        return self.resource.metadata and self.resource.metadata.name or None
+
+    @property
+    def labels(self) -> Mapping[str, str]:
+        """Return the resource's labels."""
+        return self.resource.metadata and self.resource.metadata.labels or {}
 
     def __str__(self):
         """String version of the unique parts.
@@ -209,9 +216,9 @@ class ManifestLabel(Patch):
         if obj.metadata:
             version = self.manifests.current_release
             labels = {
-                "juju.io/application": self.manifests.model.app.name,
-                "juju.io/manifest": self.manifests.name,
-                "juju.io/manifest-version": f"{self.manifests.name}-{version}",
+                literals.APP_LABEL: self.manifests.model.app.name,
+                literals.MANIFEST_LABEL: self.manifests.name,
+                literals.MANIFEST_VERSION_LABEL: f"{self.manifests.name}-{version}",
             }
             if isinstance(obj, (GenericGlobalResource, GenericNamespacedResource)):
                 # Custom resources in lightkube are built differently

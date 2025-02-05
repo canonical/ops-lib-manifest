@@ -1,7 +1,7 @@
-from .collector import Collector
-from .exceptions import ManifestClientError
-from .manifest import HashableResource, Manifests
-from .manipulations import (
+from ops.manifests.collector import Collector, ResourceAnalysis
+from ops.manifests.exceptions import ManifestClientError
+from ops.manifests.manifest import HashableResource, Manifests
+from ops.manifests.manipulations import (
     Addition,
     ConfigRegistry,
     CreateNamespace,
@@ -17,11 +17,11 @@ __all__ = [
     "ConfigRegistry",
     "CreateNamespace",
     "HashableResource",
+    "ManifestClientError",
     "ManifestLabel",
     "Manifests",
     "Patch",
-    "update_tolerations",
+    "ResourceAnalysis",
     "SubtractEq",
-    "ManifestClientError",
     "update_tolerations",
 ]
