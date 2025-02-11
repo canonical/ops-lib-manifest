@@ -311,7 +311,8 @@ class Manifests:
 
     def delete_manifests(self, **kwargs):
         """Delete all manifests associated with the current release."""
-        self.delete_resources(*self.resources, **kwargs)
+        installed_resources = self.labelled_resources()
+        self.delete_resources(*installed_resources, **kwargs)
 
     def apply_resources(self, *resources: HashableResource):
         """Apply set of resources to the cluster.
