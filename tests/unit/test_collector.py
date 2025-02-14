@@ -40,7 +40,7 @@ def responder(resp_by_name):
     return _respond
 
 
-def test_collector_list_resources_all(manifest, lk_client, api_error_klass):
+def test_collector_analyze_resources_all(manifest, lk_client, api_error_klass):
     def label_correct(r):
         r.metadata.labels = {
             "juju.io/manifest": manifest.name,
@@ -73,7 +73,7 @@ def test_collector_list_resources_all(manifest, lk_client, api_error_klass):
     lk_client.get.side_effect = responder(resp_by_name)
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
-    (analysis,) = collector.list_resources(event, None, None)
+    (analysis,) = collector.analyze_resources(event, None, None)
     event.set_results.assert_called_once_with(
         {
             "test-manifest-correct": "\n".join(
@@ -108,7 +108,7 @@ def test_collector_list_resources_all(manifest, lk_client, api_error_klass):
     assert len(analysis.extra) == 1
 
 
-def test_collector_list_kind_filter(manifest, lk_client, api_error_klass):
+def test_collector_analyze_kind_filter(manifest, lk_client, api_error_klass):
     def raise_not_found(r):
         not_found = api_error_klass()
         not_found.status.code = 404
@@ -121,7 +121,7 @@ def test_collector_list_kind_filter(manifest, lk_client, api_error_klass):
     lk_client.get.side_effect = responder(resp_by_name)
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
-    collector.list_resources(event, None, "deployment")
+    collector.analyze_resources(event, None, "deployment")
     event.set_results.assert_called_once_with(
         {"test-manifest-missing": "Deployment/kube-system/test-manifest-deployment"}
     )
@@ -134,8 +134,8 @@ def test_collector_list_manifest_filter(manifest):
     event.set_results.assert_called_once_with({})
 
 
-@mock.patch("ops.manifests.collector.Collector.list_resources")
-def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
+@mock.patch("ops.manifests.collector.Collector.analyze_resources")
+def test_collector_scrub_resources(mock_analyze_resources, manifest, lk_client):
     resource = HashableResource(
         codecs.from_dict(
             dict(
@@ -147,21 +147,21 @@ def test_collector_scrub_resources(mock_list_resources, manifest, lk_client):
     )
     analysis = ops.manifests.collector.ResourceAnalysis("test-manifest")
     analysis.extra = {resource}
-    mock_list_resources.return_value = [analysis]
+    mock_analyze_resources.return_value = [analysis]
 
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     with mock.patch.object(manifest, "_delete") as mock_delete:
         collector.scrub_resources(event, None, None)
 
-    assert mock_list_resources.call_count == 2
-    mock_list_resources.assert_called_with(event, None, None)
+    assert mock_analyze_resources.call_count == 2
+    mock_analyze_resources.assert_called_with(event, None, None)
     event.log.assert_called_once_with("Removing Namespace/delete-me")
     mock_delete.assert_called_once_with(resource, None, False)
 
 
-@mock.patch("ops.manifests.collector.Collector.list_resources")
-def test_collector_install_missing_resources(mock_list_resources, manifest, lk_client, caplog):
+@mock.patch("ops.manifests.collector.Collector.analyze_resources")
+def test_collector_install_missing_resources(mock_analyze_resources, manifest, lk_client, caplog):
     resource = codecs.from_dict(
         dict(
             apiVersion="v1",
@@ -171,14 +171,14 @@ def test_collector_install_missing_resources(mock_list_resources, manifest, lk_c
     )
     analysis = ops.manifests.collector.ResourceAnalysis("test-manifest")
     analysis.missing = {HashableResource(resource)}
-    mock_list_resources.return_value = [analysis]
+    mock_analyze_resources.return_value = [analysis]
 
     event = mock.MagicMock(spec=ops.ActionEvent)
     collector = Collector(manifest)
     collector.apply_missing_resources(event, None, None)
 
-    assert mock_list_resources.call_count == 2
-    mock_list_resources.assert_called_with(event, None, None)
+    assert mock_analyze_resources.call_count == 2
+    mock_analyze_resources.assert_called_with(event, None, None)
     event.log.assert_called_once_with("Applying Namespace/install-me-im-missing")
     assert lk_client.apply.call_count == 1
     assert caplog.messages == [

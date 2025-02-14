@@ -60,13 +60,17 @@ class Collector:
         }
         event.set_results(result)
 
+    def list_resources(self, event, manifests: Optional[str], resources: Optional[str]):
+        """List available, extra, conflicting, and missing resources for each manifest."""
+        self.analyze_resources(event, manifests, resources)
+
     def scrub_resources(self, event, manifests: Optional[str], resources: Optional[str]):
         """Remove extra resources installed by each manifest.
 
         Uses the list_resource analysis to determine the extra resource
         then delete those resources.
         """
-        for analysis in self.list_resources(event, manifests, resources):
+        for analysis in self.analyze_resources(event, manifests, resources):
             if analysis.extra:
                 event.log(f"Removing {','.join(str(_) for _ in analysis.extra)}")
                 self.manifests[analysis.manifest].delete_resources(*analysis.extra)
@@ -78,7 +82,7 @@ class Collector:
         Uses the list_resource analysis to determine the missing resources
         then applies those resources.
         """
-        for analysis in self.list_resources(event, manifests, resources):
+        for analysis in self.analyze_resources(event, manifests, resources):
             if analysis.missing:
                 event.log(f"Applying {','.join(str(_) for _ in analysis.missing)}")
                 self.manifests[analysis.manifest].apply_resources(*analysis.missing)
@@ -136,7 +140,7 @@ class Collector:
             f"{app}={c.current_release}" for app, c in self.manifests.items()
         )
 
-    def list_resources(
+    def analyze_resources(
         self, event: ops.EventBase, manifests: Optional[str], resources: Optional[str]
     ) -> List[ResourceAnalysis]:
         """Analyze resources installed in the cluster.
