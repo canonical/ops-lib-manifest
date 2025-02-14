@@ -96,6 +96,10 @@ def mock_get_responder(klass, name, namespace=None):
     response.kind = klass.__name__
     response.metadata.name = name
     response.metadata.namespace = namespace
+    response.metadata.labels = {
+        "juju.io/application": "unit-testing",
+        "juju.io/manifest": "test-manifest",
+    }
     if hasattr(response, "status"):
         response.status.conditions = [
             Condition("False", "Ready"),
@@ -216,6 +220,39 @@ def test_installed_resources_http_error(manifest, lk_client, http_gateway_error)
         rscs = manifest.installed_resources()
     assert mock_get.call_count == 4
     assert len(rscs) == 0, "No resources expected to be installed."
+
+
+def test_conflicting_resources(manifest, lk_client):
+    with mock.patch.object(lk_client, "get") as mock_get:
+        mock_get.side_effect = mock_get_responder
+        rscs = manifest.installed_resources()
+        for rsc in rscs:
+            if rsc.kind == "ServiceAccount":
+                rsc.resource.metadata.labels["juju.io/application"] = "alternate"
+    conflicts = manifest.conflicting_resources(rscs)
+
+    assert len(rscs) == 4, "4 installed resources"
+    assert len(conflicts) == 1, "1 conflicting resources"
+    element = next(rsc for rsc in conflicts if rsc.kind == "ServiceAccount")
+    assert element.namespace == "kube-system"
+    assert element.name == "test-manifest-manager"
+    assert element.kind == "ServiceAccount"
+    assert element.labels["juju.io/application"] == "unit-testing"
+
+
+def test_conflicting_resources_unmatched_resource(manifest, lk_client):
+    with mock.patch.object(lk_client, "get") as mock_get:
+        mock_get.side_effect = mock_get_responder
+        rscs = manifest.installed_resources()
+        for rsc in rscs:
+            if rsc.kind == "ServiceAccount":
+                rsc.resource.metadata.name += "-conflict"
+    with pytest.raises(ManifestClientError) as mce:
+        manifest.conflicting_resources(rscs)
+    assert (
+        "Unexpected resource installed: ServiceAccount/kube-system/test-manifest-manager-conflict"
+        == str(mce.value)
+    )
 
 
 def test_labelled_resources(manifest, lk_client):

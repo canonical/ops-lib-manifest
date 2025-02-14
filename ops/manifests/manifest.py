@@ -30,6 +30,7 @@ from lightkube.generic_resource import (
     load_in_cluster_generic_resources,
 )
 
+import ops.manifests.literals as literals
 from ops.model import Model
 
 from .exceptions import ManifestClientError
@@ -286,6 +287,29 @@ class Manifests:
             result[HashableResource(next_rsc)] = None
         return frozenset(result.keys())
 
+    def conflicting_resources(
+        self, installed: FrozenSet[HashableResource]
+    ) -> FrozenSet[HashableResource]:
+        """Determine which currently installed resources were installed by this manifest.
+
+        Returns:
+            A set of resources that are expected to be installed by this
+            manifest but have been installed otherwise in the cluster.
+        """
+        result: Dict[HashableResource, None] = OrderedDict()
+        expected = self.resources
+        for obj in installed:
+            if match := next((m for m in expected if m == obj), None):
+                compare = obj, match
+                app, match_app = (_.labels.get(literals.APP_LABEL) for _ in compare)
+                name, match_name = (_.labels.get(literals.MANIFEST_LABEL) for _ in compare)
+                if app != match_app or name != match_name:
+                    result[match] = None
+            else:
+                raise ManifestClientError(f"Unexpected resource installed: {obj}")
+
+        return frozenset(result.keys())
+
     def labelled_resources(self) -> FrozenSet[HashableResource]:
         """Any resource ever installed and labeled by this class."""
         NamespaceKind = namedtuple("NamespaceKind", "namespace, kind")
@@ -298,8 +322,8 @@ class Manifests:
                 ns_kind.kind,
                 namespace=ns_kind.namespace,
                 labels={
-                    "juju.io/application": self.model.app.name,
-                    "juju.io/manifest": self.name,
+                    literals.APP_LABEL: self.model.app.name,
+                    literals.MANIFEST_LABEL: self.name,
                 },
             )
         )
@@ -310,7 +334,7 @@ class Manifests:
         self.apply_resources(*self.resources)
 
     def delete_manifests(self, **kwargs):
-        """Delete all manifests associated with the current release."""
+        """Delete all installed manifests associated with the current release."""
         installed_resources = self.labelled_resources()
         self.delete_resources(*installed_resources, **kwargs)
 
@@ -365,8 +389,8 @@ class Manifests:
                 type(obj.resource),
                 namespace=namespace,
                 labels={
-                    "juju.io/application": self.model.app.name,
-                    "juju.io/manifest": self.name,
+                    literals.APP_LABEL: self.model.app.name,
+                    literals.MANIFEST_LABEL: self.name,
                 },
                 fields={"metadata.name": obj.name},
             ):

@@ -61,7 +61,10 @@ def manifest(harness):
         dict(
             apiVersion="v1",
             kind="ConfigMap",
-            metadata=dict(name="test-manifest-config-map", namespace="kube-system"),
+            metadata=dict(
+                name="test-manifest-config-map",
+                namespace="kube-system",
+            ),
         )
     )
 
