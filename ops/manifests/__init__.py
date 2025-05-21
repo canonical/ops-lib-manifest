@@ -1,5 +1,5 @@
 from ops.manifests.collector import Collector, ResourceAnalysis
-from ops.manifests.exceptions import ManifestClientError
+from ops.manifests.exceptions import ManifestClientError, ManifestReleaseError
 from ops.manifests.manifest import HashableResource, Manifests
 from ops.manifests.manipulations import (
     Addition,
@@ -18,6 +18,7 @@ __all__ = [
     "CreateNamespace",
     "HashableResource",
     "ManifestClientError",
+    "ManifestReleaseError",
     "ManifestLabel",
     "Manifests",
     "Patch",

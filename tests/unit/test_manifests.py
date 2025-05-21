@@ -10,7 +10,7 @@ from tempfile import NamedTemporaryFile
 import httpx
 import pytest
 
-from ops.manifests import HashableResource, ManifestClientError, Manifests
+from ops.manifests import HashableResource, ManifestClientError, ManifestReleaseError, Manifests
 
 
 def test_fail_load_crds(mock_load_in_cluster_generic_resources):
@@ -60,20 +60,48 @@ def test_releases(manifest):
     assert manifest.releases == ["v0.3.1", "v0.2"]
 
 
-def test_current_release(manifest):
+@pytest.mark.parametrize(
+    "title, config, default, latest",
+    [
+        ("Configured", "v0.1", "", ""),
+        ("Default", "", "v0.1", ""),
+        ("Latest", "", "", "v0.1"),
+        ("Unconfigured", "", "", ""),
+    ],
+    ids=["Configured=v0.1", "Default=v0.1", "Latest=v0.1", "Unconfigured"],
+)
+def test_current_release_doesnt_exist(manifest, title, config, default, latest):
+    # Set the release to a non-existent version
+    manifest.data["release"] = config
+
+    with mock.patch.object(
+        manifest, "default_release", new_callable=mock.PropertyMock(return_value=default)
+    ), mock.patch.object(
+        manifest, "latest_release", new_callable=mock.PropertyMock(return_value=latest)
+    ):
+        with pytest.raises(ManifestReleaseError) as ie:
+            manifest.current_release
+    if title == "Unconfigured":
+        assert str(ie.value) == f"No release selected for test-manifest among {manifest.releases}"
+    else:
+        assert (
+            str(ie.value)
+            == f"{title} release for test-manifest 'v0.1' not among {manifest.releases}"
+        )
+
+
+def test_current_release(manifest, caplog):
     manifest.data["release"] = None
     assert manifest.current_release == "v0.2"  # as defined by tests/data/mock_manifests/version
 
-    manifest.data["release"] = "v0.1"
-    assert manifest.current_release == "v0.1"  # as defined by config
-
+    manifest.data["release"] = None
     with mock.patch.object(
         manifest, "default_release", new_callable=mock.PropertyMock(return_value=None)
     ):
-        manifest.default_release == "v0.3.1"  # absence of a default_release
+        assert manifest.current_release == "v0.3.1"  # absence of a default_release
 
 
-@pytest.mark.parametrize("release, uniqs", [("v0.1", 0), ("v0.2", 4), ("v0.3.1", 1)])
+@pytest.mark.parametrize("release, uniqs", [("v0.2", 4), ("v0.3.1", 1)])
 def test_resources_version(manifest, release, uniqs):
     manifest.data["release"] = release
     rscs = manifest.resources
@@ -406,7 +434,7 @@ def tmp_manifests(tmp_path):
 
 def test_non_dictionary_resource(tmp_manifests, caplog):
     caplog.set_level(logging.WARNING)
-    path = tmp_manifests.base_path / "manifests" / tmp_manifests.current_release
+    path = tmp_manifests.base_path / "manifests" / tmp_manifests.config["release"]
     with NamedTemporaryFile(mode="w+t", dir=path, suffix=".yaml") as fp:
         fp.write("non-yaml")
         fp.flush()
@@ -416,7 +444,7 @@ def test_non_dictionary_resource(tmp_manifests, caplog):
 
 def test_non_kubernetes_resource(tmp_manifests, caplog):
     caplog.set_level(logging.WARNING)
-    path = tmp_manifests.base_path / "manifests" / tmp_manifests.current_release
+    path = tmp_manifests.base_path / "manifests" / tmp_manifests.config["release"]
     with NamedTemporaryFile(mode="w+t", dir=path, suffix=".yaml") as fp:
         fp.write("kind: Missing apiVersion")
         fp.flush()
@@ -427,7 +455,7 @@ def test_non_kubernetes_resource(tmp_manifests, caplog):
 
 def test_nested_kubernetes_resource(tmp_manifests, caplog):
     caplog.set_level(logging.WARNING)
-    path = tmp_manifests.base_path / "manifests" / tmp_manifests.current_release
+    path = tmp_manifests.base_path / "manifests" / tmp_manifests.config["release"]
     with NamedTemporaryFile(mode="w+t", dir=path, suffix=".yaml") as fp:
         fp.write(
             """---
