@@ -162,38 +162,26 @@ class Manifests:
 
         # Determine what the user has configured (it could be undefined or empty)
         config_release: str = self.config.get("release") or ""
-
-        if self._check_release:
-            if config_release:
-                if config_release not in self.releases:
-                    raise ManifestReleaseError(
-                        f"Configured release for {self.name} '{config_release}' not among {self.releases}"
-                    )
-                log.debug(
-                    f"Configured release for {self.name} '{config_release}' is among {self.releases}"
-                )
-            elif self.default_release:
-                if self.default_release not in self.releases:
-                    raise ManifestReleaseError(
-                        f"Default release for {self.name} '{self.default_release}' not among {self.releases}"
-                    )
-                log.debug(
-                    f"Default release for {self.name} '{self.default_release}' is among {self.releases}"
-                )
-            elif self.latest_release:
-                if self.latest_release not in self.releases:
-                    raise ManifestReleaseError(
-                        f"Latest release for {self.name} '{self.latest_release}' not among {self.releases}"
-                    )
-                log.debug(
-                    f"Latest release for {self.name} '{self.latest_release}' is among {self.releases}"
-                )
-            else:
-                raise ManifestReleaseError(
-                    f"No release selected for {self.name} among {self.releases}"
-                )
-
-        return config_release or self.default_release or self.latest_release
+        if not self._check_release:
+            return config_release or self.default_release or self.latest_release
+        elif config_release:
+            candidate, source = config_release, "Configured"
+        elif self.default_release:
+            candidate, source = self.default_release, "Default"
+        elif self.latest_release:
+            candidate, source = self.latest_release, "Latest"
+        else:
+            raise ManifestReleaseError(
+                f"No release selected for {self.name} among {self.releases}"
+            )
+        if candidate not in self.releases:
+            raise ManifestReleaseError(
+                f"{source} release for {self.name} '{candidate}' not among {self.releases}"
+            )
+        log.debug(
+            "%s release for %s '%s'. (Available %s)", source, self.name, candidate, self.releases
+        )
+        return candidate
 
     @property
     def resources(self) -> KeysView[HashableResource]:
