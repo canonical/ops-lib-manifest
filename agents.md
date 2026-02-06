@@ -91,10 +91,15 @@ Manages multiple `Manifests` instances for charms that deploy multiple applicati
 
 **Key properties/methods:**
 - `unready`: List of resources with non-ready conditions
-- `list_versions()`: Action handler to list available versions
-- `list_resources()`: Action handler to analyze resources
-- `scrub_resources()`: Remove extra installed resources
-- `all_conditions`: All conditions from all manifests
+- `conditions`: Mapping of (manifest_name, resource) to condition
+- `all_conditions`: List of all (manifest_name, resource, condition) tuples
+- `short_version`: Comma-separated current releases (e.g., "v1.2.3,v2.0.1")
+- `long_version`: Formatted version string (e.g., "Versions: app1=v1.2.3, app2=v2.0.1")
+- `list_versions(event)`: Action handler to list available versions
+- `list_resources(event, manifests, resources)`: Action handler to analyze resources
+- `scrub_resources(event, manifests, resources)`: Remove extra installed resources
+- `apply_missing_resources(event, manifests, resources)`: Apply resources that are missing
+- `analyze_resources(event, manifests, resources)`: Returns List[ResourceAnalysis] with detailed analysis
 
 #### 3. `Manipulation` Classes (manipulations.py)
 
@@ -105,10 +110,11 @@ Manages multiple `Manifests` instances for charms that deploy multiple applicati
 - `Subtraction`: Remove resources from manifests
 
 **Built-in Implementations:**
-- `ManifestLabel`: Adds Juju-related labels to all resources
-- `ConfigRegistry`: Updates image registry across all container resources
+- `ManifestLabel`: Adds Juju-related labels to all resources (juju.io/application, juju.io/manifest, juju.io/manifest-version)
+- `ConfigRegistry`: Updates image registry across all container resources (Pods, DaemonSets, Deployments, StatefulSets)
 - `CreateNamespace`: Adds a namespace resource
-- `SubtractEq`: Removes resources matching specific criteria
+- `SubtractEq`: Removes a specific resource by comparing kind, name, and namespace
+- `update_tolerations()`: Helper function (not a class) to update tolerations on Pod-like resources
 
 **Custom Manipulations:**
 Charms can create custom manipulation classes by inheriting from Patch, Addition, or Subtraction.
@@ -120,6 +126,19 @@ Wrapper around lightkube resource objects to make them hashable and comparable.
 - Enable resources to be used in sets/dicts
 - Provide equality comparison based on kind/namespace/name
 - Format resources as strings for logging/display
+
+#### 5. `ResourceAnalysis` (collector.py)
+Dataclass that represents the analysis of resources for a specific manifest.
+
+**Fields:**
+- `manifest` (str): Name of the manifest being analyzed
+- `conflicting` (FrozenSet[HashableResource]): Resources that exist but were not installed by this charm
+- `correct` (FrozenSet[HashableResource]): Resources that match expected state
+- `extra` (FrozenSet[HashableResource]): Resources installed but no longer in the manifest
+- `missing` (FrozenSet[HashableResource]): Resources expected but not yet installed
+
+**Usage:**
+Returned by `Collector.analyze_resources()` to provide detailed resource analysis for actions like list-resources, scrub-resources, and apply-missing-resources.
 
 ### Directory Structure for Manifest Files
 
@@ -333,6 +352,52 @@ class RemoveTestResources(Subtraction):
         return "test" in obj.metadata.name.lower()
 ```
 
+#### Using SubtractEq
+```python
+from ops.manifests import SubtractEq
+from lightkube import codecs
+
+class MyAppManifests(Manifests):
+    def __init__(self, charm, charm_config):
+        # Create a resource to subtract
+        unwanted_resource = codecs.from_dict({
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {"name": "unwanted-sa", "namespace": "default"}
+        })
+        
+        manipulations = [
+            ManifestLabel(self),
+            SubtractEq(self, unwanted_resource),  # Remove this specific resource
+        ]
+        super().__init__("my-app", charm.model, "upstream/my-app", manipulations)
+```
+
+#### Using update_tolerations
+```python
+from ops.manifests import Patch, update_tolerations
+from lightkube.models.core_v1 import Toleration
+
+class UpdateTolerations(Patch):
+    """Add custom tolerations to workload resources."""
+    
+    def __call__(self, obj):
+        def adjuster(existing_tolerations):
+            # Add a new toleration
+            new_toleration = Toleration(
+                key="node.kubernetes.io/disk-pressure",
+                operator="Exists",
+                effect="NoSchedule"
+            )
+            # Combine existing and new tolerations
+            all_tolerations = list(existing_tolerations or [])
+            all_tolerations.append(new_toleration)
+            return all_tolerations
+        
+        # Apply tolerations using the helper function
+        update_tolerations(obj, adjuster)
+```
+
 ### Using Collector in a Charm
 
 ```python
@@ -443,6 +508,58 @@ The library:
 - Missing manifest files
 - Invalid YAML syntax
 - API errors when applying resources
+
+### Charm Actions
+
+The library is designed to support several Juju actions that charms should implement:
+
+1. **list-versions**: List all available manifest versions
+   - Handler: `collector.list_versions(event)`
+   - Returns: `{manifest-name}-versions` for each manifest
+
+2. **list-resources**: Analyze installed resources
+   - Handler: `collector.list_resources(event, manifests, resources)`
+   - Params: `manifests` (optional filter), `resources` (optional filter)
+   - Returns: Analysis showing correct, extra, missing, and conflicting resources
+
+3. **scrub-resources**: Remove extra resources
+   - Handler: `collector.scrub_resources(event, manifests, resources)`
+   - Params: Same as list-resources
+   - Action: Deletes resources that are installed but no longer in manifests
+
+4. **apply-missing-resources**: Apply resources that are missing
+   - Handler: `collector.apply_missing_resources(event, manifests, resources)`
+   - Params: Same as list-resources
+   - Action: Applies resources that are in manifests but not installed
+
+Example action definition in `actions.yaml`:
+```yaml
+list-versions:
+  description: List all available manifest versions
+list-resources:
+  description: Analyze installed resources
+  params:
+    manifests:
+      type: string
+      description: Space-separated list of manifests to filter (optional)
+    resources:
+      type: string
+      description: Space-separated list of resources to filter (optional)
+scrub-resources:
+  description: Remove extra resources no longer in manifests
+  params:
+    manifests:
+      type: string
+    resources:
+      type: string
+apply-missing-resources:
+  description: Apply resources that are missing from the cluster
+  params:
+    manifests:
+      type: string
+    resources:
+      type: string
+```
 
 ## Important Implementation Details
 
