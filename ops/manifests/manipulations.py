@@ -16,6 +16,7 @@ from typing import (
     cast,
 )
 
+from fqdn import FQDN  # type: ignore[import-untyped]
 from lightkube import codecs
 from lightkube.generic_resource import GenericGlobalResource, GenericNamespacedResource
 from lightkube.models.core_v1 import Toleration
@@ -65,8 +66,27 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
             f"Maximum allowed is {literals.MAX_NAME_LENGTH} characters"
         )
 
-    # Use regex to validate RFC1123 subdomain format
-    if not literals.RFC1123_SUBDOMAIN_PATTERN.match(name_to_check):
+    # RFC1123 requires lowercase
+    if name_to_check != name_to_check.lower():
+        safe_name = repr(name_to_check)
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
+            f"Names must be lowercase alphanumeric with hyphens or periods, "
+            f"start and end with alphanumeric, and have labels of 1-63 characters"
+        )
+
+    # RFC1123 subdomain cannot end with dot
+    if name_to_check.endswith('.'):
+        safe_name = repr(name_to_check)
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
+            f"Names must be lowercase alphanumeric with hyphens or periods, "
+            f"start and end with alphanumeric, and have labels of 1-63 characters"
+        )
+
+    # Use FQDN package for RFC1123 subdomain validation
+    fqdn_obj = FQDN(name_to_check, min_labels=1, allow_underscores=False)
+    if not fqdn_obj.is_valid:
         safe_name = repr(name_to_check)
         raise NameValidationError(
             f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
