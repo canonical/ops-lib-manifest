@@ -74,11 +74,19 @@ The central class that represents a collection of manifest files for a specific 
 **Key properties/methods:**
 - `config` (property): Must be implemented by subclasses to provide configuration
 - `current_release`: Determines which version to use based on config
+- `releases`: List of all available release versions (sorted highest first)
+- `default_release`: Release specified in the `version` file
+- `latest_release`: Highest version number available
 - `resources`: All unique resources after applying manipulations
 - `apply_manifests()`: Deploy all resources to cluster
+- `apply_resources(*resources)`: Deploy specific resources to cluster
 - `delete_manifests()`: Remove all resources from cluster
-- `installed_resources()`: Query what's currently in the cluster
-- `status()`: Get status of deployed resources
+- `delete_resources(*resources, **kwargs)`: Remove specific resources from cluster
+- `installed_resources()`: Query what's currently in the cluster (expected resources only)
+- `labelled_resources()`: Query all resources in cluster with this manifest's labels
+- `conflicting_resources(installed)`: Determine which installed resources conflict with expected
+- `status()`: Get status of deployed resources (those with conditions)
+- `is_ready(obj, cond)`: Check if a resource condition is ready (can be overridden)
 
 #### 2. `Collector` (collector.py)
 Manages multiple `Manifests` instances for charms that deploy multiple applications.
@@ -471,6 +479,44 @@ The library supports multiple release versions:
    - Patches modify remaining resources
 4. **Deploy**: Apply resources to cluster using lightkube client
 5. **Monitor**: Query installed resources and their conditions
+
+### Applying and Deleting Resources
+
+**Applying resources:**
+```python
+# Apply all resources from current release
+manifests.apply_manifests()
+
+# Apply specific resources
+manifests.apply_resources(*some_resources)
+# or singular alias:
+manifests.apply_resource(single_resource)
+```
+
+Resources are applied with `force=True`, which means they overwrite existing resources in the cluster.
+
+**Deleting resources:**
+```python
+# Delete all resources from current release
+manifests.delete_manifests()
+
+# Delete specific resources with options
+manifests.delete_resources(
+    *some_resources,
+    namespace="default",              # Optional: specify namespace
+    ignore_not_found=True,           # Ignore errors if resource doesn't exist
+    ignore_unauthorized=True,        # Ignore permission errors
+    ignore_labels=False              # If True, skip label validation (dangerous!)
+)
+# or singular alias:
+manifests.delete_resource(single_resource)
+```
+
+**Important**: By default, `delete_resources` only deletes resources that:
+1. Match the resource kind, name, and namespace
+2. Have the correct Juju labels (juju.io/application and juju.io/manifest)
+
+This prevents accidentally deleting resources owned by other charms. Set `ignore_labels=True` to skip this check (use with caution).
 
 ### Labels
 
