@@ -3,7 +3,6 @@
 """Classes used for mutating or adding to manifests."""
 
 import logging
-import re
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -30,14 +29,6 @@ if TYPE_CHECKING:
     from .manifest import Manifests  # pragma: no cover
 
 log = logging.getLogger(__file__)
-
-# RFC1123 subdomain validation regex patterns
-# Label pattern: 1-63 chars, starts and ends with alphanumeric, allows hyphens in middle
-_LABEL_PATTERN = r'[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
-# Full subdomain pattern: one or more labels separated by dots, max 253 chars total
-_RFC1123_SUBDOMAIN_PATTERN = re.compile(
-    rf'^{_LABEL_PATTERN}(\.{_LABEL_PATTERN})*$'
-)
 
 
 class NameValidationError(Exception):
@@ -75,7 +66,7 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
         )
 
     # Use regex to validate RFC1123 subdomain format
-    if not _RFC1123_SUBDOMAIN_PATTERN.match(name_to_check):
+    if not literals.RFC1123_SUBDOMAIN_PATTERN.match(name_to_check):
         # Provide detailed error message by checking specific violations
         safe_name = repr(name_to_check)
         
