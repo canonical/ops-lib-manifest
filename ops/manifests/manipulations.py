@@ -43,8 +43,6 @@ MAX_NAME_LENGTH = 253
 class NameValidationError(Exception):
     """Raised when a Kubernetes resource name violates RFC1123 rules."""
 
-    pass
-
 
 def validate_resource_name(name_to_check: str, resource_type: str = "Resource") -> None:
     """Verify that a resource name meets Kubernetes RFC1123 subdomain requirements.
@@ -53,7 +51,7 @@ def validate_resource_name(name_to_check: str, resource_type: str = "Resource") 
     - Maximum 253 characters
     - Only lowercase alphanumeric, hyphen, or period characters
     - Must begin with an alphanumeric character
-    - Must conclude with an alphanumeric character
+    - Must end with an alphanumeric character
 
     Args:
         name_to_check: The resource name to validate
