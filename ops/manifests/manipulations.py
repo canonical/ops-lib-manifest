@@ -424,5 +424,5 @@ class ValidateResourceNames(Patch):
 
         if error_msg:
             log.error("RFC1123 validation failed: %s", error_msg)
-            raise ValueError(f"Invalid Kubernetes resource name: {error_msg}")
+            raise NameValidationError(f"Invalid Kubernetes resource name: {error_msg}")
 
