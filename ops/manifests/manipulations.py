@@ -70,23 +70,20 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
         # Provide detailed error message by checking specific violations
         safe_name = repr(name_to_check)
         
-        # Check for invalid starting character
-        first_char = name_to_check[0]
-        if first_char not in literals.ALPHANUMERIC_LOWER:
-            safe_char = repr(first_char)
-            raise NameValidationError(
-                f"{resource_type} name {safe_name} starts with {safe_char} which is invalid. "
-                f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
-            )
-        
-        # Check for invalid ending character
-        last_char = name_to_check[-1]
-        if last_char not in literals.ALPHANUMERIC_LOWER:
-            safe_char = repr(last_char)
-            raise NameValidationError(
-                f"{resource_type} name {safe_name} ends with {safe_char} which is invalid. "
-                f"Names must end with a lowercase letter (a-z) or digit (0-9)"
-            )
+        # Check if name starts or ends with a period (these create empty labels)
+        if name_to_check[0] == '.' or name_to_check[-1] == '.':
+            first_char = name_to_check[0]
+            last_char = name_to_check[-1]
+            if first_char == '.':
+                raise NameValidationError(
+                    f"{resource_type} name {safe_name} starts with '.' which is invalid. "
+                    f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
+                )
+            if last_char == '.':
+                raise NameValidationError(
+                    f"{resource_type} name {safe_name} ends with '.' which is invalid. "
+                    f"Names must end with a lowercase letter (a-z) or digit (0-9)"
+                )
         
         # Check for consecutive dots (empty labels)
         if ".." in name_to_check:
@@ -105,23 +102,37 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
                     f"Each period-separated label must be at most 63 characters"
                 )
             
-            # Check if label starts with invalid character
+            # Check if label starts with invalid character (skip empty labels from start/end dots)
             if label and label[0] not in literals.ALPHANUMERIC_LOWER:
                 safe_label = repr(label)
                 safe_char = repr(label[0])
-                raise NameValidationError(
-                    f"{resource_type} name {safe_name} contains label {safe_label} starting with {safe_char}. "
-                    f"Each period-separated label must start with a lowercase letter or digit"
-                )
+                # For single-label names, provide simpler error message
+                if len(labels) == 1:
+                    raise NameValidationError(
+                        f"{resource_type} name {safe_name} starts with {safe_char} which is invalid. "
+                        f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
+                    )
+                else:
+                    raise NameValidationError(
+                        f"{resource_type} name {safe_name} contains label {safe_label} starting with {safe_char}. "
+                        f"Each period-separated label must start with a lowercase letter or digit"
+                    )
             
-            # Check if label ends with invalid character
+            # Check if label ends with invalid character (skip empty labels from start/end dots)
             if label and label[-1] not in literals.ALPHANUMERIC_LOWER:
                 safe_label = repr(label)
                 safe_char = repr(label[-1])
-                raise NameValidationError(
-                    f"{resource_type} name {safe_name} contains label {safe_label} ending with {safe_char}. "
-                    f"Each period-separated label must end with a lowercase letter or digit"
-                )
+                # For single-label names, provide simpler error message
+                if len(labels) == 1:
+                    raise NameValidationError(
+                        f"{resource_type} name {safe_name} ends with {safe_char} which is invalid. "
+                        f"Names must end with a lowercase letter (a-z) or digit (0-9)"
+                    )
+                else:
+                    raise NameValidationError(
+                        f"{resource_type} name {safe_name} contains label {safe_label} ending with {safe_char}. "
+                        f"Each period-separated label must end with a lowercase letter or digit"
+                    )
         
         # Check for invalid characters (if none of the above caught it)
         name_chars = set(name_to_check)
