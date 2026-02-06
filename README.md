@@ -263,7 +263,7 @@ Some resources already exist within the manifest, and just need to be updated.
   * validates that all Kubernetes resource names comply with RFC1123 subdomain rules
   * ensures resource names are lowercase alphanumeric with hyphens or periods only
   * prevents common naming errors like underscores, uppercase letters, or invalid characters
-  * raises `ValueError` with a clear error message if validation fails
+  * raises `NameValidationError` with a clear error message if validation fails
   * can be used standalone via `validate_resource_name()` and `get_validation_error()` functions
 
 ### Adding a manifest resource

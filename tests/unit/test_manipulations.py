@@ -268,10 +268,18 @@ class TestValidateResourceName:
         validate_resource_name("a-b-c.d-e-f", "StorageClass")
 
     def test_valid_max_length_name(self):
-        """Test that 253 character names pass validation."""
+        """Test that 253 character names pass validation with proper label structure."""
         from ops.manifests import validate_resource_name
 
-        long_name = "a" * 253
+        # Create a valid 253 character name with proper label structure
+        # Each label must be <=63 chars, so use dots to separate
+        # 63 + 1 (dot) + 63 + 1 (dot) + 63 + 1 (dot) + 61 = 253
+        label1 = "a" * 63
+        label2 = "b" * 63
+        label3 = "c" * 63
+        label4 = "d" * 61
+        long_name = f"{label1}.{label2}.{label3}.{label4}"
+        assert len(long_name) == 253
         validate_resource_name(long_name, "StorageClass")
 
     def test_invalid_empty_name(self):
@@ -380,6 +388,84 @@ class TestValidateResourceName:
 
         with pytest.raises(NameValidationError, match="ConfigMap"):
             validate_resource_name("Invalid", "ConfigMap")
+
+    def test_invalid_consecutive_dots(self):
+        """Test that names with consecutive dots (empty labels) fail validation."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        with pytest.raises(NameValidationError, match="empty labels"):
+            validate_resource_name("a..b", "StorageClass")
+
+        with pytest.raises(NameValidationError, match="empty labels"):
+            validate_resource_name("my-app..com", "StorageClass")
+
+    def test_invalid_label_too_long(self):
+        """Test that labels over 63 characters fail validation."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        # Create a label that's 64 characters
+        long_label = "a" * 64
+        with pytest.raises(NameValidationError, match="too long"):
+            validate_resource_name(long_label, "StorageClass")
+
+        # Label in middle of dots
+        with pytest.raises(NameValidationError, match="too long"):
+            validate_resource_name(f"valid.{long_label}.valid", "StorageClass")
+
+    def test_valid_label_exactly_63_chars(self):
+        """Test that labels of exactly 63 characters pass validation."""
+        from ops.manifests import validate_resource_name
+
+        # Create a label that's exactly 63 characters
+        long_label = "a" * 63
+        validate_resource_name(long_label, "StorageClass")
+
+        # Label with dots
+        validate_resource_name(f"valid.{long_label}.valid", "StorageClass")
+
+    def test_invalid_label_starting_with_hyphen(self):
+        """Test that labels starting with hyphen fail validation."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        with pytest.raises(NameValidationError, match="must start"):
+            validate_resource_name("a.-b", "StorageClass")
+
+        with pytest.raises(NameValidationError, match="must start"):
+            validate_resource_name("valid.-invalid", "StorageClass")
+
+    def test_invalid_label_ending_with_hyphen(self):
+        """Test that labels ending with hyphen fail validation."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        with pytest.raises(NameValidationError, match="must end"):
+            validate_resource_name("a-.b", "StorageClass")
+
+        with pytest.raises(NameValidationError, match="must end"):
+            validate_resource_name("invalid-.valid", "StorageClass")
+
+    def test_valid_hyphen_in_middle_of_label(self):
+        """Test that hyphens in the middle of labels are valid."""
+        from ops.manifests import validate_resource_name
+
+        validate_resource_name("my-app", "StorageClass")
+        validate_resource_name("a-b-c.d-e-f", "StorageClass")
+        validate_resource_name("my-long-label.with-hyphens", "StorageClass")
+
+    def test_invalid_control_characters(self):
+        """Test that names with control characters fail validation and are sanitized in error messages."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        # Test newline
+        with pytest.raises(NameValidationError, match=r"invalid characters"):
+            validate_resource_name("my\napp", "StorageClass")
+
+        # Test tab
+        with pytest.raises(NameValidationError, match=r"invalid characters"):
+            validate_resource_name("my\tapp", "StorageClass")
+
+        # Test carriage return
+        with pytest.raises(NameValidationError, match=r"invalid characters"):
+            validate_resource_name("my\rapp", "StorageClass")
 
 
 class TestGetValidationError:
@@ -503,6 +589,8 @@ class TestValidateResourceNamesPatch:
 
     def test_invalid_storage_class_name_with_underscore(self, validator):
         """Test that StorageClass names with underscores fail validation."""
+        from ops.manifests import NameValidationError
+        
         obj = from_dict(
             {
                 "apiVersion": "storage.k8s.io/v1",
@@ -512,11 +600,13 @@ class TestValidateResourceNamesPatch:
             }
         )
 
-        with pytest.raises(ValueError, match="Invalid Kubernetes resource name"):
+        with pytest.raises(NameValidationError, match="Invalid Kubernetes resource name"):
             validator(obj)
 
     def test_invalid_storage_class_name_with_uppercase(self, validator):
         """Test that StorageClass names with uppercase fail validation."""
+        from ops.manifests import NameValidationError
+        
         obj = from_dict(
             {
                 "apiVersion": "storage.k8s.io/v1",
@@ -526,11 +616,13 @@ class TestValidateResourceNamesPatch:
             }
         )
 
-        with pytest.raises(ValueError, match="Invalid Kubernetes resource name"):
+        with pytest.raises(NameValidationError, match="Invalid Kubernetes resource name"):
             validator(obj)
 
     def test_invalid_storage_class_name_ending_with_hyphen(self, validator):
         """Test that StorageClass names ending with hyphen fail validation."""
+        from ops.manifests import NameValidationError
+        
         obj = from_dict(
             {
                 "apiVersion": "storage.k8s.io/v1",
@@ -540,7 +632,7 @@ class TestValidateResourceNamesPatch:
             }
         )
 
-        with pytest.raises(ValueError, match="Invalid Kubernetes resource name"):
+        with pytest.raises(NameValidationError, match="Invalid Kubernetes resource name"):
             validator(obj)
 
     def test_object_without_metadata(self, validator):
@@ -576,6 +668,8 @@ class TestValidateResourceNamesPatch:
 
     def test_invalid_configmap_name(self, validator):
         """Test that invalid ConfigMap names fail validation."""
+        from ops.manifests import NameValidationError
+        
         obj = from_dict(
             {
                 "apiVersion": "v1",
@@ -585,5 +679,5 @@ class TestValidateResourceNamesPatch:
             }
         )
 
-        with pytest.raises(ValueError, match="Invalid Kubernetes resource name"):
+        with pytest.raises(NameValidationError, match="Invalid Kubernetes resource name"):
             validator(obj)

@@ -35,17 +35,18 @@ class NameValidationError(Exception):
     """Raised when a Kubernetes resource name violates RFC1123 rules."""
 
 
-def validate_resource_name(name_to_check: str, resource_type: str = "Resource") -> None:
+def validate_resource_name(name_to_check: Optional[str], resource_type: str = "Resource") -> None:
     """Verify that a resource name meets Kubernetes RFC1123 subdomain requirements.
 
     Kubernetes requires resource names to be RFC1123 subdomains which means:
-    - Maximum 253 characters
-    - Only lowercase alphanumeric, hyphen, or period characters
-    - Must begin with an alphanumeric character
-    - Must end with an alphanumeric character
+    - Maximum 253 characters total
+    - Consists of lowercase alphanumeric characters, hyphens, or periods
+    - Must begin and end with an alphanumeric character
+    - When split by periods, each label must be 1-63 characters
+    - Each label must start and end with an alphanumeric character
 
     Args:
-        name_to_check: The resource name to validate
+        name_to_check: The resource name to validate (can be None)
         resource_type: Type of resource for error messaging
 
     Raises:
@@ -57,26 +58,70 @@ def validate_resource_name(name_to_check: str, resource_type: str = "Resource") 
     name_len = len(name_to_check)
 
     if name_len > literals.MAX_NAME_LENGTH:
+        # Sanitize name for error message
+        safe_name = repr(name_to_check)
         raise NameValidationError(
-            f"{resource_type} name '{name_to_check}' is too long ({name_len} characters). "
+            f"{resource_type} name {safe_name} is too long ({name_len} characters). "
             f"Maximum allowed is {literals.MAX_NAME_LENGTH} characters"
         )
 
     # Validate starting character
     first_char = name_to_check[0]
     if first_char not in literals.ALPHANUMERIC_LOWER:
+        safe_name = repr(name_to_check)
+        safe_char = repr(first_char)
         raise NameValidationError(
-            f"{resource_type} name '{name_to_check}' starts with '{first_char}' which is invalid. "
+            f"{resource_type} name {safe_name} starts with {safe_char} which is invalid. "
             f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
         )
 
     # Validate ending character
     last_char = name_to_check[-1]
     if last_char not in literals.ALPHANUMERIC_LOWER:
+        safe_name = repr(name_to_check)
+        safe_char = repr(last_char)
         raise NameValidationError(
-            f"{resource_type} name '{name_to_check}' ends with '{last_char}' which is invalid. "
+            f"{resource_type} name {safe_name} ends with {safe_char} which is invalid. "
             f"Names must end with a lowercase letter (a-z) or digit (0-9)"
         )
+
+    # Validate per-label constraints (split by periods)
+    labels = name_to_check.split(".")
+    for label in labels:
+        if not label:
+            # Empty label (consecutive dots like "a..b")
+            safe_name = repr(name_to_check)
+            raise NameValidationError(
+                f"{resource_type} name {safe_name} contains empty labels (consecutive periods). "
+                f"Each period-separated label must contain at least one character"
+            )
+        
+        if len(label) > 63:
+            safe_name = repr(name_to_check)
+            safe_label = repr(label)
+            raise NameValidationError(
+                f"{resource_type} name {safe_name} contains label {safe_label} that is too long ({len(label)} characters). "
+                f"Each period-separated label must be at most 63 characters"
+            )
+        
+        # Each label must start and end with alphanumeric
+        if label[0] not in literals.ALPHANUMERIC_LOWER:
+            safe_name = repr(name_to_check)
+            safe_label = repr(label)
+            safe_char = repr(label[0])
+            raise NameValidationError(
+                f"{resource_type} name {safe_name} contains label {safe_label} starting with {safe_char}. "
+                f"Each period-separated label must start with a lowercase letter or digit"
+            )
+        
+        if label[-1] not in literals.ALPHANUMERIC_LOWER:
+            safe_name = repr(name_to_check)
+            safe_label = repr(label)
+            safe_char = repr(label[-1])
+            raise NameValidationError(
+                f"{resource_type} name {safe_name} contains label {safe_label} ending with {safe_char}. "
+                f"Each period-separated label must end with a lowercase letter or digit"
+            )
 
     # Validate all characters
     name_chars = set(name_to_check)
@@ -94,26 +139,28 @@ def validate_resource_name(name_to_check: str, resource_type: str = "Resource") 
 
         other_invalid = invalid_chars - set("ABCDEFGHIJKLMNOPQRSTUVWXYZ_ ")
         if other_invalid:
-            char_list = ", ".join(f"'{c}'" for c in sorted(other_invalid))
+            # Sanitize invalid characters for error message
+            char_list = ", ".join(repr(c) for c in sorted(other_invalid))
             error_details.append(f"invalid characters: {char_list}")
 
         detail_str = "; ".join(error_details)
+        safe_name = repr(name_to_check)
         raise NameValidationError(
-            f"{resource_type} name '{name_to_check}' contains {detail_str}. "
+            f"{resource_type} name {safe_name} contains {detail_str}. "
             f"Only lowercase letters, digits, hyphens (-), and periods (.) are permitted"
         )
 
-    log.debug(f"Validated {resource_type} name: '{name_to_check}'")
+    log.debug(f"Validated {resource_type} name: {repr(name_to_check)}")
 
 
-def get_validation_error(name_to_check: str, resource_type: str = "Resource") -> Optional[str]:
+def get_validation_error(name_to_check: Optional[str], resource_type: str = "Resource") -> Optional[str]:
     """Check if a name is valid and return an error message if not.
 
     This is a non-throwing version of validate_resource_name that returns
     an error string instead of raising an exception.
 
     Args:
-        name_to_check: The resource name to validate
+        name_to_check: The resource name to validate (can be None)
         resource_type: Type of resource for error messaging
 
     Returns:
