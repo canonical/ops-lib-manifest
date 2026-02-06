@@ -3,6 +3,7 @@
 """Classes used for mutating or adding to manifests."""
 
 import logging
+import re
 from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
@@ -29,6 +30,14 @@ if TYPE_CHECKING:
     from .manifest import Manifests  # pragma: no cover
 
 log = logging.getLogger(__file__)
+
+# RFC1123 subdomain validation regex patterns
+# Label pattern: 1-63 chars, starts and ends with alphanumeric, allows hyphens in middle
+_LABEL_PATTERN = r'[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?'
+# Full subdomain pattern: one or more labels separated by dots, max 253 chars total
+_RFC1123_SUBDOMAIN_PATTERN = re.compile(
+    rf'^{_LABEL_PATTERN}(\.{_LABEL_PATTERN})*$'
+)
 
 
 class NameValidationError(Exception):
@@ -57,98 +66,96 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
 
     name_len = len(name_to_check)
 
+    # Check maximum length first
     if name_len > literals.MAX_NAME_LENGTH:
-        # Sanitize name for error message
         safe_name = repr(name_to_check)
         raise NameValidationError(
             f"{resource_type} name {safe_name} is too long ({name_len} characters). "
             f"Maximum allowed is {literals.MAX_NAME_LENGTH} characters"
         )
 
-    # Validate starting character
-    first_char = name_to_check[0]
-    if first_char not in literals.ALPHANUMERIC_LOWER:
+    # Use regex to validate RFC1123 subdomain format
+    if not _RFC1123_SUBDOMAIN_PATTERN.match(name_to_check):
+        # Provide detailed error message by checking specific violations
         safe_name = repr(name_to_check)
-        safe_char = repr(first_char)
-        raise NameValidationError(
-            f"{resource_type} name {safe_name} starts with {safe_char} which is invalid. "
-            f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
-        )
-
-    # Validate ending character
-    last_char = name_to_check[-1]
-    if last_char not in literals.ALPHANUMERIC_LOWER:
-        safe_name = repr(name_to_check)
-        safe_char = repr(last_char)
-        raise NameValidationError(
-            f"{resource_type} name {safe_name} ends with {safe_char} which is invalid. "
-            f"Names must end with a lowercase letter (a-z) or digit (0-9)"
-        )
-
-    # Validate per-label constraints (split by periods)
-    labels = name_to_check.split(".")
-    for label in labels:
-        if not label:
-            # Empty label (consecutive dots like "a..b")
-            safe_name = repr(name_to_check)
+        
+        # Check for invalid starting character
+        first_char = name_to_check[0]
+        if first_char not in literals.ALPHANUMERIC_LOWER:
+            safe_char = repr(first_char)
+            raise NameValidationError(
+                f"{resource_type} name {safe_name} starts with {safe_char} which is invalid. "
+                f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
+            )
+        
+        # Check for invalid ending character
+        last_char = name_to_check[-1]
+        if last_char not in literals.ALPHANUMERIC_LOWER:
+            safe_char = repr(last_char)
+            raise NameValidationError(
+                f"{resource_type} name {safe_name} ends with {safe_char} which is invalid. "
+                f"Names must end with a lowercase letter (a-z) or digit (0-9)"
+            )
+        
+        # Check for consecutive dots (empty labels)
+        if ".." in name_to_check:
             raise NameValidationError(
                 f"{resource_type} name {safe_name} contains empty labels (consecutive periods). "
                 f"Each period-separated label must contain at least one character"
             )
         
-        if len(label) > 63:
-            safe_name = repr(name_to_check)
-            safe_label = repr(label)
-            raise NameValidationError(
-                f"{resource_type} name {safe_name} contains label {safe_label} that is too long ({len(label)} characters). "
-                f"Each period-separated label must be at most 63 characters"
-            )
+        # Check per-label constraints
+        labels = name_to_check.split(".")
+        for label in labels:
+            if len(label) > 63:
+                safe_label = repr(label)
+                raise NameValidationError(
+                    f"{resource_type} name {safe_name} contains label {safe_label} that is too long ({len(label)} characters). "
+                    f"Each period-separated label must be at most 63 characters"
+                )
+            
+            # Check if label starts with invalid character
+            if label and label[0] not in literals.ALPHANUMERIC_LOWER:
+                safe_label = repr(label)
+                safe_char = repr(label[0])
+                raise NameValidationError(
+                    f"{resource_type} name {safe_name} contains label {safe_label} starting with {safe_char}. "
+                    f"Each period-separated label must start with a lowercase letter or digit"
+                )
+            
+            # Check if label ends with invalid character
+            if label and label[-1] not in literals.ALPHANUMERIC_LOWER:
+                safe_label = repr(label)
+                safe_char = repr(label[-1])
+                raise NameValidationError(
+                    f"{resource_type} name {safe_name} contains label {safe_label} ending with {safe_char}. "
+                    f"Each period-separated label must end with a lowercase letter or digit"
+                )
         
-        # Each label must start and end with alphanumeric
-        if label[0] not in literals.ALPHANUMERIC_LOWER:
-            safe_name = repr(name_to_check)
-            safe_label = repr(label)
-            safe_char = repr(label[0])
-            raise NameValidationError(
-                f"{resource_type} name {safe_name} contains label {safe_label} starting with {safe_char}. "
-                f"Each period-separated label must start with a lowercase letter or digit"
-            )
+        # Check for invalid characters (if none of the above caught it)
+        name_chars = set(name_to_check)
+        invalid_chars = name_chars - literals.VALID_NAME_CHARS
         
-        if label[-1] not in literals.ALPHANUMERIC_LOWER:
-            safe_name = repr(name_to_check)
-            safe_label = repr(label)
-            safe_char = repr(label[-1])
+        if invalid_chars:
+            # Create helpful error message based on what's wrong
+            error_details = []
+            if any(c.isupper() for c in invalid_chars):
+                error_details.append("uppercase letters (use lowercase instead)")
+            if "_" in invalid_chars:
+                error_details.append("underscores (use hyphens instead)")
+            if " " in invalid_chars:
+                error_details.append("spaces (use hyphens instead)")
+            
+            other_invalid = invalid_chars - set("ABCDEFGHIJKLMNOPQRSTUVWXYZ_ ")
+            if other_invalid:
+                char_list = ", ".join(repr(c) for c in sorted(other_invalid))
+                error_details.append(f"invalid characters: {char_list}")
+            
+            detail_str = "; ".join(error_details)
             raise NameValidationError(
-                f"{resource_type} name {safe_name} contains label {safe_label} ending with {safe_char}. "
-                f"Each period-separated label must end with a lowercase letter or digit"
+                f"{resource_type} name {safe_name} contains {detail_str}. "
+                f"Only lowercase letters, digits, hyphens (-), and periods (.) are permitted"
             )
-
-    # Validate all characters
-    name_chars = set(name_to_check)
-    invalid_chars = name_chars - literals.VALID_NAME_CHARS
-
-    if invalid_chars:
-        # Create helpful error message based on what's wrong
-        error_details = []
-        if any(c.isupper() for c in invalid_chars):
-            error_details.append("uppercase letters (use lowercase instead)")
-        if "_" in invalid_chars:
-            error_details.append("underscores (use hyphens instead)")
-        if " " in invalid_chars:
-            error_details.append("spaces (use hyphens instead)")
-
-        other_invalid = invalid_chars - set("ABCDEFGHIJKLMNOPQRSTUVWXYZ_ ")
-        if other_invalid:
-            # Sanitize invalid characters for error message
-            char_list = ", ".join(repr(c) for c in sorted(other_invalid))
-            error_details.append(f"invalid characters: {char_list}")
-
-        detail_str = "; ".join(error_details)
-        safe_name = repr(name_to_check)
-        raise NameValidationError(
-            f"{resource_type} name {safe_name} contains {detail_str}. "
-            f"Only lowercase letters, digits, hyphens (-), and periods (.) are permitted"
-        )
 
     log.debug(f"Validated {resource_type} name: {repr(name_to_check)}")
 
