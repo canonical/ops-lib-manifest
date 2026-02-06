@@ -308,55 +308,55 @@ class TestValidateResourceName:
         """Test that names with underscores fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="underscores"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my_app", "StorageClass")
 
-        with pytest.raises(NameValidationError, match="underscores"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("cephfs-fs_data", "StorageClass")
 
     def test_invalid_uppercase_in_name(self):
         """Test that names with uppercase letters fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must begin"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("MyApp", "StorageClass")
 
-        with pytest.raises(NameValidationError, match="uppercase"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my-App", "StorageClass")
 
     def test_invalid_space_in_name(self):
         """Test that names with spaces fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="spaces"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my app", "StorageClass")
 
     def test_invalid_start_with_hyphen(self):
         """Test that names starting with hyphen fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must begin"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("-myapp", "StorageClass")
 
     def test_invalid_start_with_dot(self):
         """Test that names starting with dot fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must begin"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name(".myapp", "StorageClass")
 
     def test_invalid_end_with_hyphen(self):
         """Test that names ending with hyphen fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must end"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("myapp-", "StorageClass")
 
     def test_invalid_end_with_dot(self):
         """Test that names ending with dot fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must end"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("myapp.", "StorageClass")
 
     def test_invalid_special_characters(self):
@@ -376,7 +376,7 @@ class TestValidateResourceName:
             "my]app",
         ]
         for name in invalid_names:
-            with pytest.raises(NameValidationError, match="invalid characters"):
+            with pytest.raises(NameValidationError, match="RFC1123"):
                 validate_resource_name(name, "StorageClass")
 
     def test_error_message_includes_resource_type(self):
@@ -393,10 +393,10 @@ class TestValidateResourceName:
         """Test that names with consecutive dots (empty labels) fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="empty labels"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("a..b", "StorageClass")
 
-        with pytest.raises(NameValidationError, match="empty labels"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my-app..com", "StorageClass")
 
     def test_invalid_label_too_long(self):
@@ -405,11 +405,11 @@ class TestValidateResourceName:
 
         # Create a label that's 64 characters
         long_label = "a" * 64
-        with pytest.raises(NameValidationError, match="too long"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name(long_label, "StorageClass")
 
         # Label in middle of dots
-        with pytest.raises(NameValidationError, match="too long"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name(f"valid.{long_label}.valid", "StorageClass")
 
     def test_valid_label_exactly_63_chars(self):
@@ -427,20 +427,20 @@ class TestValidateResourceName:
         """Test that labels starting with hyphen fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must start"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("a.-b", "StorageClass")
 
-        with pytest.raises(NameValidationError, match="must start"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("valid.-invalid", "StorageClass")
 
     def test_invalid_label_ending_with_hyphen(self):
         """Test that labels ending with hyphen fail validation."""
         from ops.manifests import NameValidationError, validate_resource_name
 
-        with pytest.raises(NameValidationError, match="must end"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("a-.b", "StorageClass")
 
-        with pytest.raises(NameValidationError, match="must end"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("invalid-.valid", "StorageClass")
 
     def test_valid_hyphen_in_middle_of_label(self):
@@ -456,15 +456,15 @@ class TestValidateResourceName:
         from ops.manifests import NameValidationError, validate_resource_name
 
         # Test newline
-        with pytest.raises(NameValidationError, match=r"invalid characters"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my\napp", "StorageClass")
 
         # Test tab
-        with pytest.raises(NameValidationError, match=r"invalid characters"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my\tapp", "StorageClass")
 
         # Test carriage return
-        with pytest.raises(NameValidationError, match=r"invalid characters"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name("my\rapp", "StorageClass")
 
 
@@ -484,11 +484,11 @@ class TestGetValidationError:
 
         error = get_validation_error("my_app", "StorageClass")
         assert error is not None
-        assert "underscores" in error
+        assert "RFC1123" in error
 
         error = get_validation_error("my-App", "StorageClass")
         assert error is not None
-        assert "uppercase" in error
+        assert "RFC1123" in error
 
     def test_empty_name_returns_error(self):
         """Test that empty names return error messages."""
@@ -516,13 +516,13 @@ class TestRealWorldScenarios:
         # This is the problematic name from the issue
         invalid_name = "cephfs-ceph-fs-ceph-fs_data"
 
-        with pytest.raises(NameValidationError, match="underscores"):
+        with pytest.raises(NameValidationError, match="RFC1123"):
             validate_resource_name(invalid_name, "StorageClass")
 
         error = get_validation_error(invalid_name, "StorageClass")
         assert error is not None
         assert "fs_data" in invalid_name  # The pool name causes the issue
-        assert "underscores" in error
+        assert "RFC1123" in error
 
     def test_valid_alternative_without_underscore(self):
         """Test that the corrected name (with hyphen) is valid."""

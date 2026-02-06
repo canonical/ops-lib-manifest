@@ -67,97 +67,12 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
 
     # Use regex to validate RFC1123 subdomain format
     if not literals.RFC1123_SUBDOMAIN_PATTERN.match(name_to_check):
-        # Provide detailed error message by checking specific violations
         safe_name = repr(name_to_check)
-        
-        # Check if name starts or ends with a period (these create empty labels)
-        if name_to_check[0] == '.' or name_to_check[-1] == '.':
-            first_char = name_to_check[0]
-            last_char = name_to_check[-1]
-            if first_char == '.':
-                raise NameValidationError(
-                    f"{resource_type} name {safe_name} starts with '.' which is invalid. "
-                    f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
-                )
-            if last_char == '.':
-                raise NameValidationError(
-                    f"{resource_type} name {safe_name} ends with '.' which is invalid. "
-                    f"Names must end with a lowercase letter (a-z) or digit (0-9)"
-                )
-        
-        # Check for consecutive dots (empty labels)
-        if ".." in name_to_check:
-            raise NameValidationError(
-                f"{resource_type} name {safe_name} contains empty labels (consecutive periods). "
-                f"Each period-separated label must contain at least one character"
-            )
-        
-        # Check per-label constraints
-        labels = name_to_check.split(".")
-        for label in labels:
-            if len(label) > 63:
-                safe_label = repr(label)
-                raise NameValidationError(
-                    f"{resource_type} name {safe_name} contains label {safe_label} that is too long ({len(label)} characters). "
-                    f"Each period-separated label must be at most 63 characters"
-                )
-            
-            # Check if label starts with invalid character (skip empty labels from start/end dots)
-            if label and label[0] not in literals.ALPHANUMERIC_LOWER:
-                safe_label = repr(label)
-                safe_char = repr(label[0])
-                # For single-label names, provide simpler error message
-                if len(labels) == 1:
-                    raise NameValidationError(
-                        f"{resource_type} name {safe_name} starts with {safe_char} which is invalid. "
-                        f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
-                    )
-                else:
-                    raise NameValidationError(
-                        f"{resource_type} name {safe_name} contains label {safe_label} starting with {safe_char}. "
-                        f"Each period-separated label must start with a lowercase letter or digit"
-                    )
-            
-            # Check if label ends with invalid character (skip empty labels from start/end dots)
-            if label and label[-1] not in literals.ALPHANUMERIC_LOWER:
-                safe_label = repr(label)
-                safe_char = repr(label[-1])
-                # For single-label names, provide simpler error message
-                if len(labels) == 1:
-                    raise NameValidationError(
-                        f"{resource_type} name {safe_name} ends with {safe_char} which is invalid. "
-                        f"Names must end with a lowercase letter (a-z) or digit (0-9)"
-                    )
-                else:
-                    raise NameValidationError(
-                        f"{resource_type} name {safe_name} contains label {safe_label} ending with {safe_char}. "
-                        f"Each period-separated label must end with a lowercase letter or digit"
-                    )
-        
-        # Check for invalid characters (if none of the above caught it)
-        name_chars = set(name_to_check)
-        invalid_chars = name_chars - literals.VALID_NAME_CHARS
-        
-        if invalid_chars:
-            # Create helpful error message based on what's wrong
-            error_details = []
-            if any(c.isupper() for c in invalid_chars):
-                error_details.append("uppercase letters (use lowercase instead)")
-            if "_" in invalid_chars:
-                error_details.append("underscores (use hyphens instead)")
-            if " " in invalid_chars:
-                error_details.append("spaces (use hyphens instead)")
-            
-            other_invalid = invalid_chars - literals.COMMON_INVALID_CHARS
-            if other_invalid:
-                char_list = ", ".join(repr(c) for c in sorted(other_invalid))
-                error_details.append(f"invalid characters: {char_list}")
-            
-            detail_str = "; ".join(error_details)
-            raise NameValidationError(
-                f"{resource_type} name {safe_name} contains {detail_str}. "
-                f"Only lowercase letters, digits, hyphens (-), and periods (.) are permitted"
-            )
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
+            f"Names must be lowercase alphanumeric with hyphens or periods, "
+            f"start and end with alphanumeric, and have labels of 1-63 characters"
+        )
 
     log.debug(f"Validated {resource_type} name: {repr(name_to_check)}")
 
