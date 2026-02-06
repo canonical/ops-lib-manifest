@@ -30,15 +30,6 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__file__)
 
-# Define character sets for RFC1123 validation
-LOWERCASE_LETTERS = set("abcdefghijklmnopqrstuvwxyz")
-DIGITS = set("0123456789")
-SEPARATORS = set("-.")
-ALPHANUMERIC_LOWER = LOWERCASE_LETTERS | DIGITS
-VALID_NAME_CHARS = ALPHANUMERIC_LOWER | SEPARATORS
-
-MAX_NAME_LENGTH = 253
-
 
 class NameValidationError(Exception):
     """Raised when a Kubernetes resource name violates RFC1123 rules."""
@@ -65,15 +56,15 @@ def validate_resource_name(name_to_check: str, resource_type: str = "Resource") 
 
     name_len = len(name_to_check)
 
-    if name_len > MAX_NAME_LENGTH:
+    if name_len > literals.MAX_NAME_LENGTH:
         raise NameValidationError(
             f"{resource_type} name '{name_to_check}' is too long ({name_len} characters). "
-            f"Maximum allowed is {MAX_NAME_LENGTH} characters"
+            f"Maximum allowed is {literals.MAX_NAME_LENGTH} characters"
         )
 
     # Validate starting character
     first_char = name_to_check[0]
-    if first_char not in ALPHANUMERIC_LOWER:
+    if first_char not in literals.ALPHANUMERIC_LOWER:
         raise NameValidationError(
             f"{resource_type} name '{name_to_check}' starts with '{first_char}' which is invalid. "
             f"Names must begin with a lowercase letter (a-z) or digit (0-9)"
@@ -81,7 +72,7 @@ def validate_resource_name(name_to_check: str, resource_type: str = "Resource") 
 
     # Validate ending character
     last_char = name_to_check[-1]
-    if last_char not in ALPHANUMERIC_LOWER:
+    if last_char not in literals.ALPHANUMERIC_LOWER:
         raise NameValidationError(
             f"{resource_type} name '{name_to_check}' ends with '{last_char}' which is invalid. "
             f"Names must end with a lowercase letter (a-z) or digit (0-9)"
@@ -89,7 +80,7 @@ def validate_resource_name(name_to_check: str, resource_type: str = "Resource") 
 
     # Validate all characters
     name_chars = set(name_to_check)
-    invalid_chars = name_chars - VALID_NAME_CHARS
+    invalid_chars = name_chars - literals.VALID_NAME_CHARS
 
     if invalid_chars:
         # Create helpful error message based on what's wrong
