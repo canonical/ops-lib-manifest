@@ -416,7 +416,7 @@ class ValidateResourceNames(Patch):
 
     def __call__(self, obj: AnyResource) -> None:
         """Check resource name against Kubernetes naming requirements."""
-        if not obj.metadata or not obj.metadata.name:
+        if obj.metadata is None or obj.metadata.name is None:
             return
 
         resource_kind = obj.kind if hasattr(obj, "kind") else "Resource"
