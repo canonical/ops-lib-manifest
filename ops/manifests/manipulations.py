@@ -137,7 +137,7 @@ def validate_resource_name(name_to_check: Optional[str], resource_type: str = "R
             if " " in invalid_chars:
                 error_details.append("spaces (use hyphens instead)")
             
-            other_invalid = invalid_chars - set("ABCDEFGHIJKLMNOPQRSTUVWXYZ_ ")
+            other_invalid = invalid_chars - literals.COMMON_INVALID_CHARS
             if other_invalid:
                 char_list = ", ".join(repr(c) for c in sorted(other_invalid))
                 error_details.append(f"invalid characters: {char_list}")
