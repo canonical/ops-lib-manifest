@@ -53,3 +53,6 @@ zip-safe = true
 [tool.setuptools.packages.find]
 namespaces = true
 
+
+[tool.bandit]
+exclude_dirs = [".tox", ".venv", "venv"]
