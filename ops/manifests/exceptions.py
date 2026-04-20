@@ -8,3 +8,9 @@ class ManifestClientError(ManifestBaseError):
     """
     Error caused by kubernetes client.
     """
+
+
+class ManifestReleaseError(ManifestBaseError):
+    """
+    Error caused by an invalid release.
+    """

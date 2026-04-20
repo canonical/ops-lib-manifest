@@ -9,6 +9,7 @@ from collections import OrderedDict, namedtuple
 from functools import cached_property, lru_cache
 from pathlib import Path
 from typing import (
+    Any,
     Dict,
     FrozenSet,
     Iterator,
@@ -30,10 +31,10 @@ from lightkube.generic_resource import (
     load_in_cluster_generic_resources,
 )
 
+import ops
 import ops.manifests.literals as literals
-from ops.model import Model
 
-from .exceptions import ManifestClientError
+from .exceptions import ManifestClientError, ManifestReleaseError
 from .manipulations import (
     Addition,
     AnyCondition,
@@ -80,24 +81,27 @@ class Manifests:
     def __init__(
         self,
         name: str,
-        model: Model,
+        model: ops.Model,
         base_path: PathLike,
         manipulations: Optional[List[Manipulation]] = None,
+        check_release: bool = False,
     ):
         """Create Manifests object.
 
-        @param name:         Uniquely idenitifes these released manifests.
-        @param model:        ops framework Model
-        @param base_path:    path to folder containing manifest files for various
-                             releases.
-        @param manipulations list of manipulation objects which will alter the existing
-                             resources in the manifest files.
-                             ~ defaults to updating the label ~
+        @param name:          Uniquely identifies these released manifests.
+        @param model:         ops framework Model
+        @param base_path:     path to folder containing manifest files for various
+                              releases.
+        @param manipulations: list of manipulation objects which will alter the existing
+                              resources in the manifest files.
+                              ~ defaults to updating the label ~
+        @param check_release: if True, will check if the current release is available
         """
 
         self.name = name
         self.base_path = Path(base_path)
         self.model = model
+        self._check_release = check_release
         if manipulations is None:
             self.manipulations: List[Manipulation] = [ManifestLabel(self)]
         else:
@@ -116,7 +120,7 @@ class Manifests:
         return client
 
     @property
-    def config(self) -> Dict:
+    def config(self) -> Dict[str, Any]:
         """Retrieve the current available config to use during manifest building."""
         raise NotImplementedError
 
@@ -150,12 +154,34 @@ class Manifests:
     @cached_property
     def latest_release(self) -> str:
         """Lookup the default release suggested by the manifest."""
-        return self.releases[0]
+        return self.releases[0] if self.releases else ""
 
     @property
     def current_release(self) -> str:
-        """Determine the current release from charm config."""
-        return self.config.get("release") or self.default_release or self.latest_release
+        """Determine the current release from charm config and available releases."""
+
+        # Determine what the user has configured (it could be undefined or empty)
+        config_release: str = self.config.get("release") or ""
+        if not self._check_release:
+            return config_release or self.default_release or self.latest_release
+        elif config_release:
+            candidate, source = config_release, "Configured"
+        elif self.default_release:
+            candidate, source = self.default_release, "Default"
+        elif self.latest_release:
+            candidate, source = self.latest_release, "Latest"
+        else:
+            raise ManifestReleaseError(
+                f"No release selected for {self.name} among {self.releases}"
+            )
+        if candidate not in self.releases:
+            raise ManifestReleaseError(
+                f"{source} release for {self.name} '{candidate}' not among {self.releases}"
+            )
+        log.debug(
+            "%s release for %s '%s'. (Available %s)", source, self.name, candidate, self.releases
+        )
+        return candidate
 
     @property
     def resources(self) -> KeysView[HashableResource]:

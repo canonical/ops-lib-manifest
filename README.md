@@ -33,9 +33,9 @@ its content, and deploy those manifests when any of the **configurable** data is
 
 ## Supporting Multiple Releases
 Likewise, the projects which release reference manifest files, will also release versions
-of manifests. It's possible for a charm to load all the supported manifest files into a 
-folder structure such the charm supports multiple releases. This library supports this 
-requirements by having the charm store upstream manifest files unchanged in a folder 
+of manifests. It's possible for a charm to load all the supported manifest files into a
+folder structure such the charm supports multiple releases. This library supports this
+requirements by having the charm store upstream manifest files unchanged in a folder
 structure like this:
 
 ```
@@ -63,7 +63,7 @@ Key file-heirarchy requirements
 ## Sample Usage
 
 Once your charm includes the above manifest file hierarchy, your charm will need to define the
-mutations the library should make to the manifests. 
+mutations the library should make to the manifests.
 
 ```python
 from ops.manifests import Collector, Manifests, ManifestLabel, ConfigRegistry
@@ -110,10 +110,10 @@ class ExampleCharm(CharmBase):
 
         # Register actions callbacks
         self.framework.observe(self.on.list_versions_action, self._list_versions)
-        
+
         # Register update status callbacks
         self.framework.observe(self.on.update_status, self._update_status)
-    
+
     def _list_versions(self, event):
         self.collector.list_versions(event)
 
@@ -125,7 +125,7 @@ class ExampleCharm(CharmBase):
             self.unit.status = ActiveStatus("Ready")
             self.unit.set_workload_version(self.collector.short_version)
             self.app.status = ActiveStatus(self.collector.long_version)
-        
+
 ```
 
 ## Manifests
@@ -137,11 +137,12 @@ This class provides the following functions:
 4) Manipulates resource objects of a specific release
 5) Provides comparisons between the installed resources and expected resources
 6) Provides user listing of available releases
+7) Provides a means of checking if the selected manifest release exists
 
 ### Creating a Manifest Impl
 It's expected that the developer create a `Manifest` impl -- a derived class -- that implements
 one property -- `config`.  This property provides some basic requirements to the
-Manifest parent class and gives context for each custom `Manipulation` to act on 
+Manifest parent class and gives context for each custom `Manipulation` to act on
 relation or config data.
 
 ```python
@@ -151,10 +152,21 @@ relation or config data.
 ```
 
 #### Expected `config` key mappings
-* `release` 
+* `release`
     * optional `str` which identifies which release of the manifest to choose.
-    * defaults to `None` which will select the `default_release` if available.
-    * if `default_release` isn't found, the latest release is chosen.
+    * when `self._check_release = False`, legacy behavior for selecting a
+      release will engage:
+        * use the configured release if set
+        * if unset, the `default_release` is chosen.
+        * if `default_release` is unset, the `latest_release` is chosen.
+        * if `latest_release` is unset, the `""` release is chosen.
+    * when `self._check_release = True`, a `ManifestReleaseError` exception
+      is raised under the follow conditions:
+        * a `configured` release is chosen that isn't among the available releases
+        * a `default_release` is chosen that isn't among the available releases
+        * a `latest_release` is chosen that isn't among the available releases
+        * `configured`, `default_release`, and `latest_release` are all empty
+
 * `image-registry`
     * optional `str` which will be used by the `ConfigRegistry` manipulation
     * defaults to `None` which uses the resources built-in registry location
@@ -162,16 +174,16 @@ relation or config data.
 
 
 ### Cluster CRUD methods
-* `status()` 
+* `status()`
     * queries all in cluster resources associated with the current release which
       has a `.status.conditions` attribute.
 * `installed_resources()`
-    * queries all in cluster resources associated with the current release which 
+    * queries all in cluster resources associated with the current release which
       is installed.
 * `labelled_resources()`
     * queries all in cluster resources associated with the charm and manifest in general
       which is installed.
-    * this can be compared with the `resources` property to look for extra resources 
+    * this can be compared with the `resources` property to look for extra resources
       installed which are no longer necessary.
 * `apply_manifests()`
     * applies all resources from the current release into the cluster.
@@ -183,7 +195,7 @@ relation or config data.
     * will delete all current release resources from the cluster
     * see `delete_resources` for keyword arguments
 * `delete_resources(...)`
-    * delete a specified set of resources from the cluster with options to 
+    * delete a specified set of resources from the cluster with options to
       seamlessly handle certain failures.
 * `delete_resource(...)`
     * alias to `delete_resources` for when reading clarity demands only deleting
@@ -192,7 +204,7 @@ relation or config data.
 ## Collector
 
 This class provides a native collection for operating collectively on
-the manifests within a single charm.  It provides methods for responding to 
+the manifests within a single charm.  It provides methods for responding to
 * action list-versions
 * action scrub-resources
 * action list-resources
@@ -200,8 +212,8 @@ the manifests within a single charm.  It provides methods for responding to
 * querying the collective versions (short and long types)
 * listing which resources have a non-active status
 
-To integrate into an [ops charm](https://juju.is/docs/sdk/ops), for each 
-released application the charm manages, create a new `Manifests` impl, 
+To integrate into an [ops charm](https://juju.is/docs/sdk/ops), for each
+released application the charm manages, create a new `Manifests` impl,
 and add an instance of it to a `Collector`.
 
 ```python
@@ -229,7 +241,7 @@ class ExampleCharm(CharmBase):
         ...
         # collection of ManifestImpls
         self.collector = Collector(
-            ExampleApp(self, self.config), 
+            ExampleApp(self, self.config),
             AlternateApp(self, self.config),
         )
 ```
@@ -241,7 +253,7 @@ class ExampleCharm(CharmBase):
 Some resources already exist within the manifest, and just need to be updated.
 
 #### Built in Patchers
-* `ManifestLabel` 
+* `ManifestLabel`
   * adds to each resource's `metadata.labels` the following:
      1) `juju.io/application: manifests.app_name`
      2) `juju.io/manifest: manifests.name`
@@ -254,7 +266,7 @@ Some resources already exist within the manifest, and just need to be updated.
   * If the charm doesn't wish to alter the config, ensure nothing exists
     in the `image-registry`.
 
-* `update_toleration` 
+* `update_toleration`
   * not officially a patcher, but can be used by a custom Patcher
     to adjust tolerations on `Pod`, `DaemonSet`, `Deployment`, and `StatefulSet`
     resources.
@@ -264,15 +276,15 @@ Some resources do not exist in the release manifest and must be added. The `Addi
 before the rest of the `Patch` manipulations are applied.
 
 #### Built in Adders
-* `CreateNamespace` - Creates a namespace resource using either the manifest's default namespace or 
-                      an argument passed in to the constructor of this class. 
+* `CreateNamespace` - Creates a namespace resource using either the manifest's default namespace or
+                      an argument passed in to the constructor of this class.
 
 ### Subtracting a manifest resource
 Some manifest resources are not needed and must be removed. The `Subtraction` manipulations are added
 before the rest of the `Patch` manipulations are applied.
 
 #### Built in Subtractors
-* `SubtractEq` - Subtracts a manifest resource equal to the resource passed in as an argument. Resources are considered 
+* `SubtractEq` - Subtracts a manifest resource equal to the resource passed in as an argument. Resources are considered
                  equal if they have the same kind, name, and namespace.
 
 ### Custom Manipulations

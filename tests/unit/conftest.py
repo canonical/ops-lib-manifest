@@ -80,6 +80,7 @@ def manifest(harness):
                     SubtractEq(self, remove_me),
                     ConfigRegistry(self),
                 ],
+                check_release=True,
             )
 
         @property
