@@ -233,3 +233,212 @@ def test_custom_addition(manifest, request, secret_count):
     manifest.manipulations.append(CustomAddition(manifest))
     resources = manifest.resources
     assert len([rsc for rsc in resources if name in rsc.name]) == secret_count
+
+
+# RFC1123 Validation Tests
+
+
+class TestValidateResourceName:
+    """Test the validate_resource_name function.
+    
+    These tests verify our wrapper logic around the fqdn package.
+    The fqdn package handles most RFC1123 validation, so we focus on:
+    - Empty/None handling
+    - Length limits
+    - Lowercase requirement (our addition)
+    - Trailing dot rejection (our addition)
+    - Integration with real-world scenarios
+    """
+
+    @pytest.mark.parametrize("name", [
+        "my-app",
+        "app123",
+        "a",
+        "my.app",
+        "app.example.com",
+        "my-app.example.com",
+    ])
+    def test_valid_names(self, name):
+        """Test that valid names pass validation."""
+        from ops.manifests import validate_resource_name
+        validate_resource_name(name, "StorageClass")
+
+    def test_valid_max_length_name(self):
+        """Test that 253 character names pass validation."""
+        from ops.manifests import validate_resource_name
+
+        # Create a valid 253 character name with proper label structure
+        # 63 + 1 (dot) + 63 + 1 (dot) + 63 + 1 (dot) + 61 = 253
+        label1 = "a" * 63
+        label2 = "b" * 63
+        label3 = "c" * 63
+        label4 = "d" * 61
+        long_name = f"{label1}.{label2}.{label3}.{label4}"
+        assert len(long_name) == 253
+        validate_resource_name(long_name, "StorageClass")
+
+    @pytest.mark.parametrize("name,match", [
+        ("", "cannot be empty"),
+        (None, "cannot be empty"),
+        ("a" * 254, "too long"),
+    ])
+    def test_invalid_basic_checks(self, name, match):
+        """Test basic validation failures (empty, None, too long)."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        with pytest.raises(NameValidationError, match=match):
+            validate_resource_name(name, "StorageClass")
+
+    @pytest.mark.parametrize("name", [
+        "MyApp",
+        "my-App",
+        "myapp.",
+        "my_app",
+        "cephfs-fs_data",
+    ])
+    def test_invalid_rfc1123_violations(self, name):
+        """Test RFC1123 validation failures (uppercase, trailing dot, underscore)."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        with pytest.raises(NameValidationError, match="RFC1123"):
+            validate_resource_name(name, "StorageClass")
+
+    @pytest.mark.parametrize("resource_type,invalid_name", [
+        ("ClusterRole", "invalid_name"),
+        ("ConfigMap", "Invalid"),
+    ])
+    def test_error_message_includes_resource_type(self, resource_type, invalid_name):
+        """Test that error messages include the resource type."""
+        from ops.manifests import NameValidationError, validate_resource_name
+
+        with pytest.raises(NameValidationError, match=resource_type):
+            validate_resource_name(invalid_name, resource_type)
+
+
+class TestGetValidationError:
+    """Test the get_validation_error function."""
+
+    @pytest.mark.parametrize("name", [
+        "my-app",
+        "app.example",
+    ])
+    def test_valid_name_returns_none(self, name):
+        """Test that valid names return None."""
+        from ops.manifests import get_validation_error
+        assert get_validation_error(name, "StorageClass") is None
+
+    @pytest.mark.parametrize("name,expected_substring", [
+        ("my_app", "RFC1123"),
+        ("my-App", "RFC1123"),
+        ("", "empty"),
+    ])
+    def test_invalid_name_returns_error_string(self, name, expected_substring):
+        """Test that invalid names return error messages."""
+        from ops.manifests import get_validation_error
+
+        error = get_validation_error(name, "StorageClass")
+        assert error is not None
+        assert expected_substring in error
+
+
+class TestRealWorldScenarios:
+    """Test real-world scenarios from the issue."""
+
+    def test_cephfs_pool_with_underscore(self):
+        """Test the specific scenario from the issue: fs_data pool name."""
+        from ops.manifests import NameValidationError, get_validation_error, validate_resource_name
+
+        # This is the problematic name from the issue
+        invalid_name = "cephfs-ceph-fs-ceph-fs_data"
+
+        with pytest.raises(NameValidationError, match="RFC1123"):
+            validate_resource_name(invalid_name, "StorageClass")
+
+        error = get_validation_error(invalid_name, "StorageClass")
+        assert error is not None
+        assert "fs_data" in invalid_name  # The pool name causes the issue
+        assert "RFC1123" in error
+
+    def test_valid_alternative_without_underscore(self):
+        """Test that the corrected name (with hyphen) is valid."""
+        from ops.manifests import get_validation_error, validate_resource_name
+
+        # Corrected version with hyphen instead of underscore
+        valid_name = "cephfs-ceph-fs-ceph-fs-data"
+        validate_resource_name(valid_name, "StorageClass")
+        assert get_validation_error(valid_name, "StorageClass") is None
+
+
+class TestValidateResourceNamesPatch:
+    """Test the ValidateResourceNames patch class."""
+
+    @pytest.fixture
+    def mock_manifests(self):
+        """Create a mock manifests object."""
+        return mock.MagicMock()
+
+    @pytest.fixture
+    def validator(self, mock_manifests):
+        """Create a ValidateResourceNames instance."""
+        from ops.manifests import ValidateResourceNames
+
+        return ValidateResourceNames(mock_manifests)
+
+    @pytest.mark.parametrize("kind,name", [
+        ("StorageClass", "cephfs-pool"),
+        ("Service", "my-service"),
+    ])
+    def test_valid_resource_names(self, validator, kind, name):
+        """Test that valid resource names pass validation."""
+        manifest_dict = {
+            "apiVersion": "v1" if kind == "Service" else "storage.k8s.io/v1",
+            "kind": kind,
+            "metadata": {"name": name},
+        }
+        if kind == "StorageClass":
+            manifest_dict["provisioner"] = "cephfs.csi.ceph.com"
+
+        obj = from_dict(manifest_dict)
+
+        # Should not raise
+        validator(obj)
+
+    @pytest.mark.parametrize("kind,name", [
+        ("StorageClass", "cephfs-fs_data"),
+        ("StorageClass", "CephFS-pool"),
+        ("StorageClass", "cephfs-pool-"),
+        ("ConfigMap", "my_config"),
+    ])
+    def test_invalid_resource_names(self, validator, kind, name):
+        """Test that invalid resource names fail validation."""
+        from ops.manifests import NameValidationError
+
+        manifest_dict = {
+            "apiVersion": "v1" if kind == "ConfigMap" else "storage.k8s.io/v1",
+            "kind": kind,
+            "metadata": {"name": name},
+        }
+        if kind == "StorageClass":
+            manifest_dict["provisioner"] = "cephfs.csi.ceph.com"
+
+        obj = from_dict(manifest_dict)
+
+        with pytest.raises(NameValidationError, match="Invalid Kubernetes resource name"):
+            validator(obj)
+
+    def test_objects_without_metadata_are_skipped(self, validator):
+        """Test that objects without metadata are skipped."""
+        obj = mock.MagicMock()
+        obj.metadata = None
+
+        # Should not raise
+        validator(obj)
+
+    def test_objects_without_name_are_skipped(self, validator):
+        """Test that objects without name are skipped."""
+        obj = mock.MagicMock()
+        obj.metadata = mock.MagicMock()
+        obj.metadata.name = None
+
+        # Should not raise
+        validator(obj)

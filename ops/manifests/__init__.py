@@ -6,9 +6,13 @@ from ops.manifests.manipulations import (
     ConfigRegistry,
     CreateNamespace,
     ManifestLabel,
+    NameValidationError,
     Patch,
     SubtractEq,
+    ValidateResourceNames,
+    get_validation_error,
     update_tolerations,
+    validate_resource_name,
 )
 
 __all__ = [
@@ -20,8 +24,12 @@ __all__ = [
     "ManifestClientError",
     "ManifestLabel",
     "Manifests",
+    "NameValidationError",
     "Patch",
     "ResourceAnalysis",
     "SubtractEq",
+    "ValidateResourceNames",
+    "get_validation_error",
     "update_tolerations",
+    "validate_resource_name",
 ]

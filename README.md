@@ -259,6 +259,13 @@ Some resources already exist within the manifest, and just need to be updated.
     to adjust tolerations on `Pod`, `DaemonSet`, `Deployment`, and `StatefulSet`
     resources.
 
+* `ValidateResourceNames`
+  * validates that all Kubernetes resource names comply with RFC1123 subdomain rules
+  * ensures resource names are lowercase alphanumeric with hyphens or periods only
+  * prevents common naming errors like underscores, uppercase letters, or invalid characters
+  * raises `NameValidationError` with a clear error message if validation fails
+  * can be used standalone via `validate_resource_name()` and `get_validation_error()` functions
+
 ### Adding a manifest resource
 Some resources do not exist in the release manifest and must be added. The `Addition` manipulations are added
 before the rest of the `Patch` manipulations are applied.
@@ -278,3 +285,57 @@ before the rest of the `Patch` manipulations are applied.
 ### Custom Manipulations
 Of course the built-ins will not be enough, so your charm may extend its own manipulations by defining
 new objects which inherit from either `Patch` or `Addition`.
+
+## RFC1123 Resource Name Validation
+
+The library includes comprehensive RFC1123 validation for Kubernetes resource names. This helps prevent deployment failures caused by invalid resource names.
+
+### Using ValidateResourceNames Patch
+
+Add `ValidateResourceNames` to your manipulation chain to automatically validate all resource names before applying them to the cluster:
+
+```python
+from ops.manifests import Manifests, ManifestLabel, ValidateResourceNames
+
+class ExampleApp(Manifests):
+    def __init__(self, charm, charm_config):
+        manipulations = [
+            ManifestLabel(self),
+            UpdateResourceNames(self),  # Your custom name updates
+            ValidateResourceNames(self),  # Validate after all name modifications
+        ]
+        super().__init__("example", charm.model, "upstream/example", manipulations)
+```
+
+### Standalone Validation Functions
+
+You can also validate resource names directly:
+
+```python
+from ops.manifests import validate_resource_name, get_validation_error, NameValidationError
+
+# Raises NameValidationError if invalid
+try:
+    validate_resource_name("my-storage-class", "StorageClass")
+except NameValidationError as e:
+    logger.error(f"Invalid name: {e}")
+
+# Returns error message string or None
+error = get_validation_error("invalid_name", "ConfigMap")
+if error:
+    print(f"Validation failed: {error}")
+```
+
+### RFC1123 Naming Rules
+
+Resource names must follow these rules:
+- Maximum 253 characters
+- Only lowercase letters (a-z), digits (0-9), hyphens (-), and periods (.)
+- Must start with an alphanumeric character
+- Must end with an alphanumeric character
+
+Common errors and fixes:
+- `pool_name` → `pool-name` (replace underscores with hyphens)
+- `MyApp` → `myapp` (use lowercase)
+- `app-` → `app` (remove trailing hyphen)
+- `-app` → `app` (remove leading hyphen)

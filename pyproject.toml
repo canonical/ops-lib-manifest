@@ -14,7 +14,8 @@ authors = [
 ]
 dependencies = [
     "ops",
-    "lightkube"
+    "lightkube",
+    "fqdn"
 ]
 keywords = [
     "juju",

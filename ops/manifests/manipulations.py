@@ -16,6 +16,7 @@ from typing import (
     cast,
 )
 
+from fqdn import FQDN  # type: ignore[import-untyped]
 from lightkube import codecs
 from lightkube.generic_resource import GenericGlobalResource, GenericNamespacedResource
 from lightkube.models.core_v1 import Toleration
@@ -29,6 +30,91 @@ if TYPE_CHECKING:
     from .manifest import Manifests  # pragma: no cover
 
 log = logging.getLogger(__file__)
+
+
+class NameValidationError(Exception):
+    """Raised when a Kubernetes resource name violates RFC1123 rules."""
+
+
+def validate_resource_name(name_to_check: Optional[str], resource_type: str = "Resource") -> None:
+    """Verify that a resource name meets Kubernetes RFC1123 subdomain requirements.
+
+    Kubernetes requires resource names to be RFC1123 subdomains which means:
+    - Maximum 253 characters total
+    - Consists of lowercase alphanumeric characters, hyphens, or periods
+    - Must begin and end with an alphanumeric character
+    - When split by periods, each label must be 1-63 characters
+    - Each label must start and end with an alphanumeric character
+
+    Args:
+        name_to_check: The resource name to validate (can be None)
+        resource_type: Type of resource for error messaging
+
+    Raises:
+        NameValidationError: If the name violates any RFC1123 rule
+    """
+    if not name_to_check:
+        raise NameValidationError(f"{resource_type} name cannot be empty or None")
+
+    name_len = len(name_to_check)
+
+    # Check maximum length first
+    if name_len > literals.MAX_NAME_LENGTH:
+        safe_name = repr(name_to_check)
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} is too long ({name_len} characters). "
+            f"Maximum allowed is {literals.MAX_NAME_LENGTH} characters"
+        )
+
+    # RFC1123 requires lowercase
+    if name_to_check != name_to_check.lower():
+        safe_name = repr(name_to_check)
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
+            f"Names must be lowercase alphanumeric with hyphens or periods, "
+            f"start and end with alphanumeric, and have labels of 1-63 characters"
+        )
+
+    # RFC1123 subdomain cannot end with dot
+    if name_to_check.endswith('.'):
+        safe_name = repr(name_to_check)
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
+            f"Names must be lowercase alphanumeric with hyphens or periods, "
+            f"start and end with alphanumeric, and have labels of 1-63 characters"
+        )
+
+    # Use FQDN package for RFC1123 subdomain validation
+    fqdn_obj = FQDN(name_to_check, min_labels=1, allow_underscores=False)
+    if not fqdn_obj.is_valid:
+        safe_name = repr(name_to_check)
+        raise NameValidationError(
+            f"{resource_type} name {safe_name} does not match RFC1123 subdomain format. "
+            f"Names must be lowercase alphanumeric with hyphens or periods, "
+            f"start and end with alphanumeric, and have labels of 1-63 characters"
+        )
+
+    log.debug(f"Validated {resource_type} name: {repr(name_to_check)}")
+
+
+def get_validation_error(name_to_check: Optional[str], resource_type: str = "Resource") -> Optional[str]:
+    """Check if a name is valid and return an error message if not.
+
+    This is a non-throwing version of validate_resource_name that returns
+    an error string instead of raising an exception.
+
+    Args:
+        name_to_check: The resource name to validate (can be None)
+        resource_type: Type of resource for error messaging
+
+    Returns:
+        Error message if invalid, None if valid
+    """
+    try:
+        validate_resource_name(name_to_check, resource_type)
+        return None
+    except NameValidationError as e:
+        return str(e)
 
 
 @dataclass
@@ -314,3 +400,20 @@ class SubtractEq(Subtraction):
     def __call__(self, obj: AnyResource) -> bool:
         """Returns true if obj == rsc based on kind, name, and namespace"""
         return HashableResource(self.to_compare) == HashableResource(obj)
+
+
+class ValidateResourceNames(Patch):
+    """Validate that all resource names comply with RFC1123 subdomain rules."""
+
+    def __call__(self, obj: AnyResource) -> None:
+        """Check resource name against Kubernetes naming requirements."""
+        if obj.metadata is None or obj.metadata.name is None:
+            return
+
+        resource_kind = obj.kind if hasattr(obj, "kind") else "Resource"
+        error_msg = get_validation_error(obj.metadata.name, resource_kind)
+
+        if error_msg:
+            log.error("RFC1123 validation failed: %s", error_msg)
+            raise NameValidationError(f"Invalid Kubernetes resource name: {error_msg}")
+
